@@ -144,7 +144,7 @@ export class MapManager {
         const ledgeVal = this.ledge[x][y];
         if (ledgeVal > 0) {
           renderer.blitImage(
-            tileset.getTile(ledgeVal - 1 + shadowOffset),
+            tileset.getTile(ledgeVal + shadowOffset),
             (x - 1) * TILE_SIZE,
             y * HALF_TILE,
           );
