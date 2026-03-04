@@ -61,8 +61,24 @@ interface MapData {
   clue: string;
 }
 
+/**
+ * Undo CRLF corruption in binary map files.
+ * Some .map files had 0x0A bytes (valid uint32 data) converted to 0x0D 0x0A
+ * by a text-mode transfer, corrupting all data after the insertion point.
+ */
+function stripCrlf(buf: Buffer): Buffer {
+  const out: number[] = [];
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i] === 0x0d && i + 1 < buf.length && buf[i + 1] === 0x0a) {
+      continue;
+    }
+    out.push(buf[i]);
+  }
+  return out.length === buf.length ? buf : Buffer.from(out);
+}
+
 function parseMap(buf: Buffer): MapData {
-  const r = new MapReader(buf);
+  const r = new MapReader(stripCrlf(buf));
 
   const version = r.readInt();
   const tileset = r.readInt();
