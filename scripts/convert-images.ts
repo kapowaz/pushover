@@ -6,8 +6,8 @@ const BASE = process.cwd();
 const OUTPUT_DIR = path.join(BASE, 'src/assets/images');
 
 const SOURCE_DIRS = [
-  path.join(BASE, 'Resource/Image'),
-  path.join(BASE, 'Intro'),
+  path.join(BASE, 'original/Resource/Image'),
+  path.join(BASE, 'original/Intro'),
 ];
 
 function normalizeName(name: string): string {

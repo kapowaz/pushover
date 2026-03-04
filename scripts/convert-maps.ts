@@ -7,8 +7,8 @@ const MAPHEIGHT = 15;
 const MAPHEIGHT2 = 30;
 
 const MAP_SETS: { src: string; dest: string }[] = [
-  { src: path.join(BASE, 'Data/Map/0'), dest: path.join(BASE, 'src/assets/maps/0') },
-  { src: path.join(BASE, 'Data/Map/2'), dest: path.join(BASE, 'src/assets/maps/2') },
+  { src: path.join(BASE, 'original/Data/Map/0'), dest: path.join(BASE, 'src/assets/maps/0') },
+  { src: path.join(BASE, 'original/Data/Map/2'), dest: path.join(BASE, 'src/assets/maps/2') },
 ];
 
 class MapReader {
