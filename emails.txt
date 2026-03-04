@@ -1,0 +1,54 @@
+Hi Ben,
+
+sorry for the delayed reply - a rather unfortunate habit of mine - though I see
+I did at least reply to your first email pretty quick.
+
+I'll send you the code, on the condition that your version is also free to play.
+
+A good opportunity to test your code-reading skills if nothing else. I hate the
+messy, inconsistent, badly organised nature of it, so my disclaimer is that I
+wrote it in the midst of learning C++ at uni.
+
+Most of the code is in headers that I made sure to only #include once because I
+had no idea how to split code properly between cpp files. G.I.Ant is lucky
+enough to be put in a class, because I started a two-player mode after finishing
+the game, and I knew what a class was by then.
+
+The file loading stuff is in loadMap in Maps.h. Hopefully it's all pretty self
+explanatory. The version number that's read is a version number for the file
+format, to maintain backwards compatibility with older files during development,
+so that's why it reads/doesn't read stuff based on that value.
+
+Something to watch out for is the readInt function which has a workaround for
+some weird problem with file.get() and file.set(). Something to do with an EOF
+character or something. Whatever the problem was, it meant not writing the value
+26, so when writing it incremented values >= 26 and when reading it decrements
+values >= 27.
+
+Everything is stored in arrays. The dominoes/platforms array is twice as high as
+the background tiles, because the tiles are only half the height, compared to
+the square background tiles.
+
+The MAPWIDTH value is actually the visible size of the map + 2, because for easy
+collision purposes the array extends off each edge of the screen. The first and
+last columns aren't stored in the file though.
+
+I believe the background tiles are stored as integers which refer to which tile
+to use from the image, counting from the top left, along the rows. This will
+mean rearranging the original game's tilesets to match mine. I may have also had
+some new tiles in there though nothing drastically different.
+
+I won't go into much more than that. Bear in mind that my levels are a bit
+different to the original game's levels in a few cases because my mechanics
+ended up a bit different (triggers for example must fall flat on the ground in
+mine).
+
+Just attaching the code files since you can get the assets with the game. More
+for reference than any attempt at compilation. In case you hadn't figured this
+one out yet the .ishi graphics files that come with the game are just renamed
+PNGs.
+
+Have fun! Hope it does turn out somewhat useful.
+
+Craig
+
