@@ -8,8 +8,8 @@ const execFileAsync = promisify(execFile);
 const BASE = process.cwd();
 const MUSIC_SRC = path.join(BASE, 'Resource/Music');
 const SOUND_SRC = path.join(BASE, 'Resource/Sound');
-const MUSIC_DEST = path.join(BASE, 'public/assets/music');
-const SOUND_DEST = path.join(BASE, 'public/assets/sounds');
+const MUSIC_DEST = path.join(BASE, 'src/assets/music');
+const SOUND_DEST = path.join(BASE, 'src/assets/sounds');
 
 async function copyOggFiles() {
   let entries;

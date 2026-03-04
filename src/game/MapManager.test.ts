@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MapManager } from './MapManager';
 import { MAPWIDTH } from './constants';
-import type { AssetLoader } from '../engine/AssetLoader';
 
 describe('MapManager', () => {
   let mgr: MapManager;
 
   beforeEach(() => {
-    const mockAssetLoader = {} as AssetLoader;
-    mgr = new MapManager(mockAssetLoader);
+    mgr = new MapManager();
   });
 
   describe('updateLedge', () => {

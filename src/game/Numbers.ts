@@ -1,6 +1,7 @@
 import { Renderer } from '../engine/Renderer';
 import { SpriteSheet } from '../engine/SpriteSheet';
 import { MAPWIDTH, MAPHEIGHT2 } from './constants';
+import { getImageUrl } from '../assets';
 
 const NUMBER_WIDTH = 16;
 const NUMBER_HEIGHT = 32;
@@ -11,7 +12,7 @@ export class NumberDisplay {
 
   constructor() {
     this.spriteSheet = new SpriteSheet(
-      '/assets/images/image/number.png',
+      getImageUrl('image/number.png'),
       NUMBER_WIDTH,
       NUMBER_HEIGHT,
       NUMBER_COLUMNS,

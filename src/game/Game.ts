@@ -14,6 +14,7 @@ import { EffectsManager } from './Effects';
 import { GameTimer } from './Timer';
 import { ProfileManager } from './Profiles';
 import { NumberDisplay } from './Numbers';
+import { getImageUrl } from '../assets';
 import {
   GAME_WIDTH,
   GAME_HEIGHT,
@@ -129,7 +130,7 @@ export class Game {
     this.audio = new AudioManager();
     this.assets = new AssetLoader();
 
-    this.map = new MapManager(this.assets);
+    this.map = new MapManager();
     this.tileset = new TilesetManager(this.assets);
     this.dominoes = new DominoManager();
     this.sounds = new SoundManager(this.audio);
@@ -165,7 +166,7 @@ export class Game {
 
   private async loadAssets(): Promise<void> {
     this.giSpriteSheet = new SpriteSheet(
-      '/assets/images/image/gi.png',
+      getImageUrl('image/gi.png'),
       GI_FRAME_WIDTH,
       GI_FRAME_HEIGHT,
       GI_FRAMES,
@@ -173,7 +174,7 @@ export class Game {
     );
 
     this.conveyorSheet = new SpriteSheet(
-      '/assets/images/image/title/conveyor.png',
+      getImageUrl('image/title/conveyor.png'),
       CONVEYOR_TILE_SIZE,
       CONVEYOR_TILE_SIZE,
       1,
@@ -186,10 +187,10 @@ export class Game {
       this.effects.loadImages(),
       this.sounds.loadAll(),
       this.conveyorSheet.load(),
-      this.assets.loadImage('/assets/images/image/title/backdrop.png'),
-      this.assets.loadImage('/assets/images/image/title/front.png'),
-      this.assets.loadImage('/assets/images/image/title/front2.png'),
-      this.assets.loadImage('/assets/images/image/title/domino-font.png'),
+      this.assets.loadImage(getImageUrl('image/title/backdrop.png')),
+      this.assets.loadImage(getImageUrl('image/title/front.png')),
+      this.assets.loadImage(getImageUrl('image/title/front2.png')),
+      this.assets.loadImage(getImageUrl('image/title/domino-font.png')),
     ]);
 
     this.titleBackdrop = backdrop;
@@ -202,10 +203,8 @@ export class Game {
     if (dominoSet === this.currentDominoSet && this.dominoSheet) return;
     this.currentDominoSet = dominoSet;
 
-    const basePath = `/assets/images/image/domino/${dominoSet}`;
-
     this.dominoSheet = new SpriteSheet(
-      `${basePath}/domino.png`,
+      getImageUrl(`image/domino/${dominoSet}/domino.png`),
       DOMINO_SPRITE_WIDTH,
       DOMINO_SPRITE_HEIGHT,
       DOM_FPD,
@@ -214,8 +213,8 @@ export class Game {
 
     const [, ladImg, rubImg] = await Promise.all([
       this.dominoSheet.load(),
-      this.assets.loadImage(`${basePath}/ladder.png`),
-      this.assets.loadImage(`${basePath}/rubble.png`),
+      this.assets.loadImage(getImageUrl(`image/domino/${dominoSet}/ladder.png`)),
+      this.assets.loadImage(getImageUrl(`image/domino/${dominoSet}/rubble.png`)),
     ]);
 
     const ladCanvas = new OffscreenCanvas(ladImg.width, ladImg.height);
@@ -469,9 +468,9 @@ export class Game {
           const dxCol = this.dominoes.domX[x];
           const dyCol = this.dominoes.domY[x];
           const drawX =
-            (x - 1) * TILE_SIZE - 20 + Math.trunc(dxCol?.[y]?.[i] ?? 0);
+            (x - 1) * TILE_SIZE - 22 + Math.trunc(dxCol?.[y]?.[i] ?? 0);
           const drawY =
-            y * HALF_TILE - TILE_SIZE + Math.trunc(dyCol?.[y]?.[i] ?? 0);
+            y * HALF_TILE - 30 + Math.trunc(dyCol?.[y]?.[i] ?? 0);
           this.renderer.blitImage(this.dominoSheet.getFrame(frameIndex), drawX, drawY);
         }
       }

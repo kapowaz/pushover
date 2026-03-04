@@ -1,6 +1,7 @@
 import { SpriteSheet } from '../engine/SpriteSheet';
 import { Renderer } from '../engine/Renderer';
 import { MAPWIDTH, MAPHEIGHT2, EFF_FRAMES, EffectType } from './constants';
+import { getImageUrl } from '../assets';
 
 const EFFECT_SIZE = 32;
 
@@ -13,7 +14,7 @@ export class EffectsManager {
       new Array<number>(MAPHEIGHT2).fill(0),
     );
     this.spriteSheet = new SpriteSheet(
-      '/assets/images/image/effect.png',
+      getImageUrl('image/effect.png'),
       EFFECT_SIZE,
       EFFECT_SIZE,
       EFF_FRAMES,

@@ -1,5 +1,6 @@
 import { AudioManager } from '../engine/AudioManager';
 import { DominoType, SoundId, TOTAL_SOUNDS } from './constants';
+import { getSoundUrl } from '../assets';
 
 export class SoundManager {
   constructor(private audio: AudioManager) {}
@@ -7,7 +8,10 @@ export class SoundManager {
   async loadAll(): Promise<void> {
     const promises: Promise<void>[] = [];
     for (let i = 0; i < TOTAL_SOUNDS; i++) {
-      promises.push(this.audio.loadSound(i, `/assets/sounds/${i + 1}.ogg`));
+      const url = getSoundUrl(i + 1);
+      if (url) {
+        promises.push(this.audio.loadSound(i, url));
+      }
     }
     await Promise.all(promises);
   }

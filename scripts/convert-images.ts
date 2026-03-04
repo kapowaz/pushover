@@ -3,7 +3,7 @@ import path from 'path';
 import sharp from 'sharp';
 
 const BASE = process.cwd();
-const OUTPUT_DIR = path.join(BASE, 'public/assets/images');
+const OUTPUT_DIR = path.join(BASE, 'src/assets/images');
 
 const SOURCE_DIRS = [
   path.join(BASE, 'Resource/Image'),

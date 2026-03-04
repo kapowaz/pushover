@@ -7,8 +7,8 @@ const MAPHEIGHT = 15;
 const MAPHEIGHT2 = 30;
 
 const MAP_SETS: { src: string; dest: string }[] = [
-  { src: path.join(BASE, 'Data/Map/0'), dest: path.join(BASE, 'public/assets/maps/0') },
-  { src: path.join(BASE, 'Data/Map/2'), dest: path.join(BASE, 'public/assets/maps/2') },
+  { src: path.join(BASE, 'Data/Map/0'), dest: path.join(BASE, 'src/assets/maps/0') },
+  { src: path.join(BASE, 'Data/Map/2'), dest: path.join(BASE, 'src/assets/maps/2') },
 ];
 
 class MapReader {
@@ -201,7 +201,7 @@ async function main() {
     }
   }
 
-  const indexPath = path.join(BASE, 'public/assets/maps/index.json');
+  const indexPath = path.join(BASE, 'src/assets/maps/index.json');
   await mkdir(path.dirname(indexPath), { recursive: true });
   await writeFile(indexPath, JSON.stringify(index, null, 2));
   console.log(`Index written to ${indexPath}`);

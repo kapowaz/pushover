@@ -1,6 +1,7 @@
 import { MAX_TILES, TILE_SIZE } from './constants';
 import { AssetLoader } from '../engine/AssetLoader';
 import { SpriteSheet } from '../engine/SpriteSheet';
+import { getImageUrl } from '../assets';
 
 const TILESET_COLS = 25;
 const TILESET_ROWS = 10;
@@ -24,7 +25,7 @@ export class TilesetManager {
     this.disposeTiles();
 
     const img = await this.assetLoader.loadImage(
-      `/assets/images/image/tileset/${tilesetNumber}.png`,
+      getImageUrl(`image/tileset/${tilesetNumber}.png`),
     );
 
     const offscreen = new OffscreenCanvas(img.width, img.height);
@@ -69,7 +70,7 @@ export class TilesetManager {
 
   async loadBabyTileset(tilesetNumber: number): Promise<void> {
     this.babySheet = new SpriteSheet(
-      `/assets/images/image/tileset/baby${tilesetNumber}.png`,
+      getImageUrl(`image/tileset/baby${tilesetNumber}.png`),
       BABY_TILE_SIZE,
       BABY_TILE_SIZE,
       TILESET_COLS,

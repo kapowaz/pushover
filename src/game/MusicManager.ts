@@ -1,4 +1,5 @@
 import { AudioManager } from '../engine/AudioManager';
+import { getMusicUrl } from '../assets';
 
 export class MusicManager {
   private currentZone = -1;
@@ -9,7 +10,9 @@ export class MusicManager {
     if (zone === this.currentZone) return;
 
     this.currentZone = zone;
-    this.audio.loadMusic(`/assets/music/${zone}.ogg`);
+    const url = getMusicUrl(zone);
+    if (!url) return;
+    this.audio.loadMusic(url);
     this.audio.playMusic();
   }
 

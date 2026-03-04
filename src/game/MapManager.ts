@@ -8,8 +8,8 @@ import {
   OPEN_DOOR,
 } from './constants';
 import { MapData, Grid, createMapGrid, createBackgroundGrid } from './types';
-import { AssetLoader } from '../engine/AssetLoader';
 import { Renderer } from '../engine/Renderer';
+import { loadMapData } from '../assets';
 import { TilesetManager } from './TilesetManager';
 
 export class MapManager {
@@ -25,16 +25,8 @@ export class MapManager {
   currentMap = 0;
   mapSet = 0;
 
-  private assetLoader: AssetLoader;
-
-  constructor(assetLoader: AssetLoader) {
-    this.assetLoader = assetLoader;
-  }
-
   async loadMap(mapSet: number, mapNumber: number): Promise<MapData> {
-    const data = await this.assetLoader.loadJSON<MapData>(
-      `/assets/maps/${mapSet}/${mapNumber}.json`,
-    );
+    const data = await loadMapData<MapData>(mapSet, mapNumber);
 
     this.background = createBackgroundGrid(0);
     this.ledge = createMapGrid(0);
