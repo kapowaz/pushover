@@ -63,7 +63,7 @@ export interface PlayerConfig {
   downKey: string;
   leftKey: string;
   rightKey: string;
-  fireKey: string;
+  fireKeys: string[];
 }
 
 export interface ProfileData {

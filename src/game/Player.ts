@@ -126,7 +126,7 @@ export class Player {
   downKey = 'ArrowDown';
   leftKey = 'ArrowLeft';
   rightKey = 'ArrowRight';
-  fireKey = 'KeyZ';
+  fireKeys = ['KeyZ', 'Space'];
   enabled = true;
   tokenGIX = 0;
   tokenGIY = 0;
@@ -142,28 +142,28 @@ export class Player {
         this.downKey = 'ArrowDown';
         this.leftKey = 'ArrowLeft';
         this.rightKey = 'ArrowRight';
-        this.fireKey = 'KeyZ';
+        this.fireKeys = ['KeyZ', 'Space'];
         break;
       case 1:
         this.upKey = 'KeyG';
         this.downKey = 'KeyB';
         this.leftKey = 'KeyV';
         this.rightKey = 'KeyN';
-        this.fireKey = 'KeyZ';
+        this.fireKeys = ['KeyZ', 'Space'];
         break;
       case 2:
         this.upKey = 'ArrowUp';
         this.downKey = 'ArrowDown';
         this.leftKey = 'ArrowLeft';
         this.rightKey = 'ArrowRight';
-        this.fireKey = 'Slash';
+        this.fireKeys = ['Slash', 'Space'];
         break;
       case 3:
         this.upKey = 'Home';
         this.downKey = 'Home';
         this.leftKey = 'Home';
         this.rightKey = 'Home';
-        this.fireKey = 'Home';
+        this.fireKeys = ['Home'];
         break;
     }
   }

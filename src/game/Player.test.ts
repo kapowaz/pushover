@@ -91,7 +91,7 @@ describe('Player', () => {
       expect(player.downKey).toBe('ArrowDown');
       expect(player.leftKey).toBe('ArrowLeft');
       expect(player.rightKey).toBe('ArrowRight');
-      expect(player.fireKey).toBe('KeyZ');
+      expect(player.fireKeys).toEqual(['KeyZ', 'Space']);
     });
 
     it('scheme 1 sets GVBN and KeyZ', () => {
@@ -100,13 +100,13 @@ describe('Player', () => {
       expect(player.downKey).toBe('KeyB');
       expect(player.leftKey).toBe('KeyV');
       expect(player.rightKey).toBe('KeyN');
-      expect(player.fireKey).toBe('KeyZ');
+      expect(player.fireKeys).toEqual(['KeyZ', 'Space']);
     });
 
     it('scheme 2 sets arrows and Slash', () => {
       player.setControls(2);
       expect(player.upKey).toBe('ArrowUp');
-      expect(player.fireKey).toBe('Slash');
+      expect(player.fireKeys).toEqual(['Slash', 'Space']);
     });
 
     it('scheme 3 disables controls (all Home)', () => {
@@ -115,7 +115,7 @@ describe('Player', () => {
       expect(player.downKey).toBe('Home');
       expect(player.leftKey).toBe('Home');
       expect(player.rightKey).toBe('Home');
-      expect(player.fireKey).toBe('Home');
+      expect(player.fireKeys).toEqual(['Home']);
     });
   });
 

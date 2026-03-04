@@ -683,18 +683,18 @@ export class Game {
 
   // --- Player context ---
 
-  private getPlayerKey(player: Player, control: Control): string {
+  private getPlayerKeys(player: Player, control: Control): string[] {
     switch (control) {
       case Control.Up:
-        return player.upKey;
+        return [player.upKey];
       case Control.Down:
-        return player.downKey;
+        return [player.downKey];
       case Control.Left:
-        return player.leftKey;
+        return [player.leftKey];
       case Control.Right:
-        return player.rightKey;
+        return [player.rightKey];
       case Control.Fire:
-        return player.fireKey;
+        return player.fireKeys;
     }
   }
 
@@ -703,8 +703,8 @@ export class Game {
     const other = this.players.find((pl) => pl !== player) ?? null;
 
     return {
-      contHit: (control: Control) => this.input.keyHit(this.getPlayerKey(player, control)),
-      contDown: (control: Control) => this.input.keyDown(this.getPlayerKey(player, control)),
+      contHit: (control: Control) => this.getPlayerKeys(player, control).some((k) => this.input.keyHit(k)),
+      contDown: (control: Control) => this.getPlayerKeys(player, control).some((k) => this.input.keyDown(k)),
 
       ledge: this.map.ledge,
       ladder: this.map.ladder,
