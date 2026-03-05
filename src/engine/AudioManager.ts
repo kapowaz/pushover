@@ -89,14 +89,24 @@ export class AudioManager {
 
   loadMusic(url: string): void {
     if (this.musicElement) {
+      this.musicElement.onerror = null;
       this.musicElement.pause();
       this.musicElement.src = '';
+      this.musicElement = null;
     }
+
+    if (this.musicSource) {
+      this.musicSource.disconnect();
+      this.musicSource = null;
+    }
+
     const el = new Audio(url);
     el.loop = true;
     el.onerror = () => {
       console.warn(`Failed to load music: ${url}`);
-      this.musicElement = null;
+      if (this.musicElement === el) {
+        this.musicElement = null;
+      }
     };
 
     try {

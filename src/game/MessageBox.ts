@@ -30,7 +30,7 @@ const enum BorderTile {
   Center = 12,
 }
 
-const enum TextColor {
+export const enum TextColor {
   Normal = 0,
   Highlight = 1,
   Selected = 2,

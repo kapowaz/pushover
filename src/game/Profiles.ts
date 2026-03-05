@@ -63,6 +63,15 @@ export class ProfileManager {
     return false;
   }
 
+  markLevelComplete(mapSet: number, level: number): void {
+    const profile = this.active;
+    if (!profile) return;
+    if ((profile.levelsComplete[mapSet] ?? 0) <= level) {
+      profile.levelsComplete[mapSet] = level + 1;
+      this.save();
+    }
+  }
+
   getAll(): ProfileData[] {
     return this.profiles;
   }

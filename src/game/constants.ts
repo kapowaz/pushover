@@ -18,6 +18,7 @@ export const OPEN_DOOR = 11;
 export enum GameScreen {
   TitleMenu = 0,
   Playing = 1,
+  LevelSelect = 2,
 }
 
 export enum MapSet {
@@ -409,4 +410,12 @@ export const TILESET_NAMES = [
   'MASTER MUSICAL',
   'MASTER !DUNGEON',
   'MASTER SKY TEMPLE',
+] as const;
+
+export const MAP_SET_NAMES = [
+  'ORIGINAL PUZZLES',
+  'NEW PUZZLES',
+  'MASTER PUZZLES',
+  'CO-OPERATIVE PUZZLES',
+  'CUSTOM PUZZLES',
 ] as const;

@@ -14,12 +14,14 @@ import { EffectsManager } from './Effects';
 import { GameTimer } from './Timer';
 import { ProfileManager } from './Profiles';
 import { NumberDisplay } from './Numbers';
-import { MessageBox, RenderMode } from './MessageBox';
-import { getImageUrl } from '../assets';
+import { MessageBox, RenderMode, TextColor } from './MessageBox';
+import { getImageUrl, loadMapData } from '../assets';
+import type { MapData } from './types';
 import {
   GAME_WIDTH,
   GAME_HEIGHT,
   MAPWIDTH,
+  MAPHEIGHT,
   MAPHEIGHT2,
   TILE_SIZE,
   HALF_TILE,
@@ -38,6 +40,8 @@ import {
   MESSAGE_DELAY,
   MessageType,
   LAST_MAP,
+  TILESET_NAMES,
+  MAP_SET_NAMES,
 } from './constants';
 
 const DOMINO_SPRITE_WIDTH = 72;
@@ -61,6 +65,42 @@ const CONVEYOR_START_TILE = 2;
 const DOMINO_FONT_CHAR_WIDTH = 32;
 const DOMINO_FONT_CHAR_HEIGHT = 35;
 const DOMINO_FONT_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,-+?';
+
+const PANELS_COUNT = 37;
+const PANEL_WIDTH = 256;
+const PANEL_HEIGHT = 32;
+const ARROW_WIDTH = 32;
+const ARROW_HEIGHT = 64;
+const ARROW_COLUMNS = 2;
+const ARROW_ROWS = 2;
+
+const TITLE_CAM_MAX = 288;
+const TITLE_CAM_SPEED = 8;
+
+const VISIBLE_LEVELS = 6;
+const LS_ENTRY_SPACING = 37;
+const LS_LIST_X = 50;
+const LS_LIST_Y = 524;
+const LS_PANEL_X = 112;
+const LS_NAME_X = 133;
+const LS_NAME_Y = 536;
+const LS_NUM_X = 78;
+const LS_NUM_Y = 535;
+const LS_TITLE_X = 333;
+const LS_TITLE_Y = 485;
+const LS_MAPSET_Y = 505;
+const LS_LEFT_ARROW_X = 8;
+const LS_RIGHT_ARROW_X = 600;
+const LS_ARROW_Y = 600;
+const LS_PROFILE_X = 480;
+const LS_PROFILE_NAME_Y = 560;
+const LS_PROFILE_TOKENS_Y = 600;
+const LS_MINIMAP_X = 252;
+const LS_MINIMAP_Y = 316;
+const LS_MINIMAP_W = 160;
+const LS_MINIMAP_H = 120;
+const BABY_TILE = 8;
+const BABY_HALF = 4;
 
 const TITLE_MESSAGES = [
   'PUSHOVER for WEB',
@@ -121,6 +161,21 @@ export class Game {
   private titleMessageX = GAME_WIDTH;
   private titleMessageNum = 0;
 
+  private panelsSheet!: SpriteSheet;
+  private panelFrameImage!: HTMLImageElement;
+  private arrowsSheet!: SpriteSheet;
+  private titleCam = 0;
+  private levelSelect = 1;
+  private levelScroll = 1;
+  private levelScrollControl = 0;
+  private levelTilesets: number[] = [];
+  private miniMapBitmap: ImageBitmap | null = null;
+  private miniMapLoading = false;
+  private miniMapLevel = -1;
+  private miniMapDesiredLevel = -1;
+  private arrow1X = 0;
+  private arrow2X = 0;
+
   private giSpriteSheet!: SpriteSheet;
   private dominoSheet!: SpriteSheet;
   private ladderDominoes: ImageBitmap[] = [];
@@ -166,6 +221,7 @@ export class Game {
 
     this.gameScreen = GameScreen.TitleMenu;
     this.music.requestMusic(100);
+    void this.loadLevelTilesets();
     this.loop.start();
   }
 
@@ -186,25 +242,46 @@ export class Game {
       CONVEYOR_FRAMES,
     );
 
-    const [, , , , , , backdrop, front, front2, dominoFont, muteIcon] = await Promise.all([
-      this.giSpriteSheet.load(),
-      this.numbers.load(),
-      this.effects.loadImages(),
-      this.sounds.loadAll(),
-      this.conveyorSheet.load(),
-      this.messageBox.load(),
-      this.assets.loadImage(getImageUrl('image/title/backdrop.png')),
-      this.assets.loadImage(getImageUrl('image/title/front.png')),
-      this.assets.loadImage(getImageUrl('image/title/front2.png')),
-      this.assets.loadImage(getImageUrl('image/title/domino-font.png')),
-      this.assets.loadImage(getImageUrl('image/mute.png')),
-    ]);
+    this.panelsSheet = new SpriteSheet(
+      getImageUrl('image/title/panels.png'),
+      PANEL_WIDTH,
+      PANEL_HEIGHT,
+      1,
+      PANELS_COUNT,
+    );
+
+    this.arrowsSheet = new SpriteSheet(
+      getImageUrl('image/title/arrows.png'),
+      ARROW_WIDTH,
+      ARROW_HEIGHT,
+      ARROW_COLUMNS,
+      ARROW_ROWS,
+    );
+
+    const [, , , , , , , , backdrop, front, front2, dominoFont, muteIcon, panelFrame] =
+      await Promise.all([
+        this.giSpriteSheet.load(),
+        this.numbers.load(),
+        this.effects.loadImages(),
+        this.sounds.loadAll(),
+        this.conveyorSheet.load(),
+        this.messageBox.load(),
+        this.panelsSheet.load(),
+        this.arrowsSheet.load(),
+        this.assets.loadImage(getImageUrl('image/title/backdrop.png')),
+        this.assets.loadImage(getImageUrl('image/title/front.png')),
+        this.assets.loadImage(getImageUrl('image/title/front2.png')),
+        this.assets.loadImage(getImageUrl('image/title/domino-font.png')),
+        this.assets.loadImage(getImageUrl('image/mute.png')),
+        this.assets.loadImage(getImageUrl('image/title/panel-frame.png')),
+      ]);
 
     this.titleBackdrop = backdrop;
     this.titleFront = front;
     this.titleFront2 = front2;
     this.dominoFontImage = dominoFont;
     this.muteIcon = muteIcon;
+    this.panelFrameImage = panelFrame;
   }
 
   private async loadDominoSprites(dominoSet: number): Promise<void> {
@@ -329,8 +406,8 @@ export class Game {
 
     if (this.levelLoading) return;
 
-    if (this.gameScreen === GameScreen.TitleMenu) {
-      this.updateTitleMenu();
+    if (this.gameScreen === GameScreen.TitleMenu || this.gameScreen === GameScreen.LevelSelect) {
+      this.updateTitleScene();
       return;
     }
 
@@ -471,17 +548,32 @@ export class Game {
   }
 
   private proceedToNextLevel(): void {
-    this.currentMap++;
-    const lastMap = LAST_MAP[this.mapSet];
-    if (lastMap !== undefined && this.currentMap > lastMap) {
-      this.currentMap = 1;
+    this.profiles.markLevelComplete(this.mapSet, this.currentMap);
+
+    const lastMap = LAST_MAP[this.mapSet] ?? 100;
+    if (this.currentMap >= lastMap) {
+      this.returnToTitle();
+      return;
     }
+
+    this.currentMap++;
     this.triggerLevelLoad(this.currentMap);
   }
 
   private returnToTitle(): void {
-    this.gameScreen = GameScreen.TitleMenu;
+    this.gameScreen = GameScreen.LevelSelect;
+    this.screenFade = 255;
+    this.titleCam = TITLE_CAM_MAX;
     this.music.requestMusic(100);
+
+    const lastMap = LAST_MAP[this.mapSet] ?? 100;
+    this.levelSelect = Math.max(1, Math.min(this.currentMap, lastMap));
+    this.levelScroll = Math.max(1, this.levelSelect - 1);
+    if (this.levelScroll > lastMap - VISIBLE_LEVELS + 1) {
+      this.levelScroll = Math.max(1, lastMap - VISIBLE_LEVELS + 1);
+    }
+
+    this.requestMiniMap(this.levelSelect);
   }
 
   // --- Render ---
@@ -491,8 +583,8 @@ export class Game {
 
     this.renderer.clear();
 
-    if (this.gameScreen === GameScreen.TitleMenu) {
-      this.renderTitleMenu();
+    if (this.gameScreen === GameScreen.TitleMenu || this.gameScreen === GameScreen.LevelSelect) {
+      this.renderTitleScene();
       this.drawMuteIcon();
       return;
     }
@@ -620,12 +712,19 @@ export class Game {
     }
   }
 
-  // --- Title menu ---
+  // --- Title & Level Select ---
 
-  private updateTitleMenu(): void {
-    if (this.input.keyHit('Enter') || this.input.keyHit('Space')) {
-      this.startGame();
-      return;
+  private updateTitleScene(): void {
+    const targetCam = this.gameScreen === GameScreen.LevelSelect ? TITLE_CAM_MAX : 0;
+    if (this.titleCam < targetCam) {
+      this.titleCam = Math.min(this.titleCam + TITLE_CAM_SPEED, targetCam);
+    } else if (this.titleCam > targetCam) {
+      this.titleCam = Math.max(this.titleCam - TITLE_CAM_SPEED, targetCam);
+    }
+
+    if (this.screenFade > 0) {
+      this.screenFade -= FADE_SPEED;
+      if (this.screenFade < 0) this.screenFade = 0;
     }
 
     this.conveyorTick = !this.conveyorTick;
@@ -639,39 +738,248 @@ export class Game {
       this.titleMessageX = TITLE_MESSAGE_RESET_X;
       this.titleMessageNum = (this.titleMessageNum + 1) % TITLE_MESSAGES.length;
     }
+
+    if (this.arrow1X > 0) this.arrow1X--;
+    if (this.arrow2X > 0) this.arrow2X--;
+
+    if (this.gameScreen === GameScreen.TitleMenu) {
+      if (this.input.keyHit('Enter') || this.input.keyHit('Space')) {
+        this.switchToLevelSelect();
+      }
+    } else {
+      this.updateLevelSelectInput();
+    }
   }
 
-  private renderTitleMenu(): void {
-    this.renderer.blitImage(this.titleBackdrop, 0, 0);
-    this.renderer.blitImage(this.titleFront2, 0, 0);
+  private updateLevelSelectInput(): void {
+    if (this.titleCam < TITLE_CAM_MAX) return;
+
+    const lastMap = LAST_MAP[this.mapSet] ?? 100;
+    const completed = this.profiles.active?.levelsComplete[this.mapSet] ?? 1;
+
+    if (this.input.keyHit('Escape')) {
+      this.gameScreen = GameScreen.TitleMenu;
+      this.sounds.playSound(SoundId.Beep2, GAME_WIDTH / 2);
+      this.arrow1X = 7;
+      return;
+    }
+
+    if (this.input.keyDown('ArrowUp') || this.input.keyDown('KeyW')) {
+      if (this.levelScrollControl > 0) this.levelScrollControl = 0;
+      this.levelScrollControl--;
+    } else if (this.input.keyDown('ArrowDown') || this.input.keyDown('KeyS')) {
+      if (this.levelScrollControl < 0) this.levelScrollControl = 0;
+      this.levelScrollControl++;
+    } else {
+      this.levelScrollControl = 0;
+    }
+
+    if (this.levelScrollControl === -1 || this.levelScrollControl < -10) {
+      if (this.levelScrollControl === -1) {
+        this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
+      }
+      this.levelSelect--;
+      if (this.levelSelect < 1) this.levelSelect = lastMap;
+      this.requestMiniMap(this.levelSelect);
+    }
+
+    if (this.levelScrollControl === 1 || this.levelScrollControl > 10) {
+      if (this.levelScrollControl === 1) {
+        this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
+      }
+      this.levelSelect++;
+      if (this.levelSelect > lastMap) this.levelSelect = 1;
+      this.requestMiniMap(this.levelSelect);
+    }
+
+    for (let i = 1; i <= 9; i++) {
+      if (this.input.keyHit(`Digit${i}`)) {
+        this.levelSelect = Math.min(i * 10, lastMap);
+        this.requestMiniMap(this.levelSelect);
+        this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
+      }
+    }
+    if (this.input.keyHit('Digit0')) {
+      this.levelSelect = lastMap;
+      this.requestMiniMap(this.levelSelect);
+      this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
+    }
+
+    if (this.levelSelect - 1 < this.levelScroll) {
+      this.levelScroll = Math.max(1, this.levelSelect - 1);
+    }
+    if (this.levelSelect - 4 > this.levelScroll) {
+      this.levelScroll = this.levelSelect - 4;
+      if (this.levelScroll > lastMap - VISIBLE_LEVELS + 1) {
+        this.levelScroll = Math.max(1, lastMap - VISIBLE_LEVELS + 1);
+      }
+    }
+
+    if (this.input.keyHit('Enter') || this.input.keyHit('Space') || this.input.keyHit('KeyZ')) {
+      if (this.levelSelect <= completed) {
+        const tileset = this.levelTilesets[this.levelSelect - 1] ?? 0;
+        if (tileset > 0) {
+          this.sounds.playSound(SoundId.Beep2, GAME_WIDTH / 2);
+          this.startLevel(this.levelSelect);
+        }
+      }
+    }
+  }
+
+  private switchToLevelSelect(): void {
+    this.gameScreen = GameScreen.LevelSelect;
+    this.sounds.playSound(SoundId.Beep2, GAME_WIDTH / 2);
+
+    const lastMap = LAST_MAP[this.mapSet] ?? 100;
+    const profile = this.profiles.active;
+
+    if (profile) {
+      const completed = profile.levelsComplete[this.mapSet] ?? 1;
+      this.levelSelect = Math.max(1, Math.min(completed, lastMap));
+    } else {
+      this.levelSelect = 1;
+    }
+
+    this.levelScroll = Math.max(1, this.levelSelect - 1);
+    if (this.levelScroll > lastMap - VISIBLE_LEVELS + 1) {
+      this.levelScroll = Math.max(1, lastMap - VISIBLE_LEVELS + 1);
+    }
+    this.levelScrollControl = 0;
+
+    this.requestMiniMap(this.levelSelect);
+  }
+
+  private renderTitleScene(): void {
+    this.renderer.blitImage(this.titleBackdrop, 0, Math.round(this.titleCam * -0.5));
+    this.renderer.blitImage(this.titleFront2, 0, -this.titleCam);
 
     const conveyorBitmap = this.conveyorSheet.getFrame(this.conveyorFrame);
     for (let i = 0; i < CONVEYOR_TILE_COUNT; i++) {
       this.renderer.blitImage(
         conveyorBitmap,
         (i + CONVEYOR_START_TILE) * CONVEYOR_TILE_SIZE,
-        CONVEYOR_Y,
+        CONVEYOR_Y - this.titleCam,
       );
     }
 
     this.drawDominoText(
       TITLE_MESSAGES[this.titleMessageNum] ?? '',
       this.titleMessageX,
-      TITLE_MESSAGE_Y,
+      TITLE_MESSAGE_Y - this.titleCam,
     );
 
-    this.renderer.blitImage(this.titleFront, 0, 0);
+    this.renderer.blitImage(this.titleFront, 0, -this.titleCam);
 
-    const ctx = this.renderer.getContext();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    if (this.titleCam < TITLE_CAM_MAX) {
+      const ctx = this.renderer.getContext();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText('PRESS ENTER TO START', GAME_WIDTH / 2 + 1, 381 - this.titleCam);
+      ctx.fillStyle = '#f0e0a0';
+      ctx.fillText('PRESS ENTER TO START', GAME_WIDTH / 2, 380 - this.titleCam);
+    }
 
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 16px monospace';
-    ctx.fillText('PRESS ENTER TO START', GAME_WIDTH / 2 + 1, 381);
+    if (this.titleCam > 0) {
+      this.renderLevelSelectUI();
+    }
 
-    ctx.fillStyle = '#f0e0a0';
-    ctx.fillText('PRESS ENTER TO START', GAME_WIDTH / 2, 380);
+    if (this.screenFade > 0) {
+      const ctx = this.renderer.getContext();
+      ctx.fillStyle = `rgba(0, 0, 0, ${this.screenFade / 255})`;
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+  }
+
+  private renderLevelSelectUI(): void {
+    const lastMap = LAST_MAP[this.mapSet] ?? 100;
+    const completed = this.profiles.active?.levelsComplete[this.mapSet] ?? 1;
+
+    for (let i = 0; i < VISIBLE_LEVELS; i++) {
+      const levelNum = i + this.levelScroll;
+      if (levelNum < 1 || levelNum > lastMap) continue;
+
+      const entryY = LS_LIST_Y + i * LS_ENTRY_SPACING - this.titleCam;
+
+      this.renderer.blitImage(this.panelFrameImage, LS_LIST_X, entryY);
+
+      const tileset = this.levelTilesets[levelNum - 1] ?? 0;
+      if (tileset > 0 && levelNum <= completed) {
+        this.renderer.blitImage(this.panelsSheet.getFrame(tileset), LS_PANEL_X, entryY + 2);
+        const name = TILESET_NAMES[tileset] ?? '';
+        this.drawTextWithShadow(
+          LS_NAME_X,
+          LS_NAME_Y + i * LS_ENTRY_SPACING - this.titleCam,
+          name,
+          false,
+        );
+      } else {
+        this.renderer.blitImage(this.panelsSheet.getFrame(0), LS_PANEL_X, entryY + 2);
+      }
+
+      const isSelected = this.levelSelect === levelNum;
+      this.messageBox.drawBitmapText(
+        this.renderer,
+        LS_NUM_X,
+        LS_NUM_Y + i * LS_ENTRY_SPACING - this.titleCam,
+        `${levelNum}`,
+        isSelected ? TextColor.Selected : TextColor.Normal,
+        true,
+      );
+    }
+
+    if (this.miniMapBitmap) {
+      const tileset = this.levelTilesets[this.levelSelect - 1] ?? 0;
+      if (tileset > 0 && this.levelSelect <= completed) {
+        this.renderer.blitImage(this.miniMapBitmap, LS_MINIMAP_X, LS_MINIMAP_Y - this.titleCam);
+      }
+    }
+
+    this.drawTextWithShadow(LS_TITLE_X, LS_TITLE_Y - this.titleCam, 'LEVEL SELECT', true);
+
+    const mapSetName = MAP_SET_NAMES[this.mapSet] ?? '';
+    this.drawTextWithShadow(LS_TITLE_X, LS_MAPSET_Y - this.titleCam, mapSetName, true);
+
+    this.renderer.blitImage(
+      this.arrowsSheet.getFrameAt(0, 0),
+      LS_LEFT_ARROW_X - this.arrow1X,
+      LS_ARROW_Y - this.titleCam,
+    );
+    this.renderer.blitImage(
+      this.arrowsSheet.getFrameAt(1, 1),
+      LS_RIGHT_ARROW_X + this.arrow2X,
+      LS_ARROW_Y - this.titleCam,
+    );
+
+    const profile = this.profiles.active;
+    if (profile) {
+      this.messageBox.drawBitmapText(
+        this.renderer,
+        LS_PROFILE_X,
+        LS_PROFILE_NAME_Y - this.titleCam,
+        profile.name.toUpperCase(),
+        TextColor.Normal,
+        true,
+      );
+      this.messageBox.drawBitmapText(
+        this.renderer,
+        LS_PROFILE_X,
+        LS_PROFILE_TOKENS_Y - this.titleCam,
+        `TOKENS: ${profile.tokens}`,
+        TextColor.Normal,
+        true,
+      );
+    }
+  }
+
+  private drawTextWithShadow(x: number, y: number, text: string, centre: boolean): void {
+    this.messageBox.drawBitmapText(
+      this.renderer, x + 1, y + 1, text, TextColor.Normal, centre,
+    );
+    this.messageBox.drawBitmapText(
+      this.renderer, x, y, text, TextColor.Highlight, centre,
+    );
   }
 
   private drawDominoText(text: string, x: number, y: number): void {
@@ -691,17 +999,129 @@ export class Game {
     }
   }
 
-  private startGame(): void {
+  private startLevel(mapNum: number): void {
     this.levelLoading = true;
     this.gameScreen = GameScreen.Playing;
-    void this.loadLevelData(1)
+    void this.loadLevelData(mapNum)
       .then(() => {
         this.levelLoading = false;
       })
       .catch((err) => {
-        console.error('Failed to start game:', err);
+        console.error('Failed to start level:', err);
         this.levelLoading = false;
       });
+  }
+
+  private async loadLevelTilesets(): Promise<void> {
+    const lastMap = LAST_MAP[this.mapSet] ?? 100;
+    this.levelTilesets = new Array(lastMap).fill(0) as number[];
+
+    const promises: Promise<void>[] = [];
+    for (let i = 1; i <= lastMap; i++) {
+      const idx = i;
+      promises.push(
+        loadMapData<{ tileset: number }>(this.mapSet, idx)
+          .then((data) => {
+            this.levelTilesets[idx - 1] = data.tileset;
+          })
+          .catch(() => {
+            /* map not available */
+          }),
+      );
+    }
+
+    await Promise.all(promises);
+  }
+
+  private requestMiniMap(level: number): void {
+    this.miniMapDesiredLevel = level;
+    if (!this.miniMapLoading) {
+      void this.loadMiniMapPreview();
+    }
+  }
+
+  private async loadMiniMapPreview(): Promise<void> {
+    this.miniMapLoading = true;
+
+    while (this.miniMapDesiredLevel !== this.miniMapLevel) {
+      const level = this.miniMapDesiredLevel;
+      this.miniMapLevel = level;
+
+      try {
+        const mapData = await loadMapData<MapData>(this.mapSet, level);
+        await this.tileset.loadBabyTileset(mapData.tileset);
+
+        const canvas = new OffscreenCanvas(LS_MINIMAP_W, LS_MINIMAP_H);
+        const ctx = canvas.getContext('2d')!;
+        ctx.clearRect(0, 0, LS_MINIMAP_W, LS_MINIMAP_H);
+
+        const ledgeVariant: number[][] = [];
+        for (let x = 0; x < MAPWIDTH; x++) {
+          ledgeVariant[x] = [];
+          for (let y = 0; y < MAPHEIGHT2; y++) {
+            const val = mapData.ledge[x]?.[y] ?? 0;
+            if (val === 0) {
+              ledgeVariant[x]![y] = 0;
+              continue;
+            }
+            const hasLeft = x > 0 && (mapData.ledge[x - 1]?.[y] ?? 0) !== 0;
+            const hasRight = x < MAPWIDTH - 1 && (mapData.ledge[x + 1]?.[y] ?? 0) !== 0;
+            if (hasLeft && hasRight) ledgeVariant[x]![y] = 2;
+            else if (hasLeft) ledgeVariant[x]![y] = 3;
+            else if (hasRight) ledgeVariant[x]![y] = 1;
+            else ledgeVariant[x]![y] = 4;
+          }
+        }
+
+        for (let x = 1; x < MAPWIDTH - 1; x++) {
+          for (let y = 0; y < MAPHEIGHT; y++) {
+            const bg = mapData.background[x]?.[y] ?? 0;
+            if (bg > 0) {
+              ctx.drawImage(
+                this.tileset.getBabyTile(bg - 1),
+                (x - 1) * BABY_TILE,
+                y * BABY_TILE,
+              );
+            }
+          }
+        }
+
+        for (let x = 1; x < MAPWIDTH - 1; x++) {
+          for (let y = MAPHEIGHT2 - 1; y >= 0; y--) {
+            const variant = ledgeVariant[x]?.[y] ?? 0;
+            if (variant > 0) {
+              const px = (x - 1) * BABY_TILE;
+              const py = y * BABY_HALF;
+              ctx.drawImage(this.tileset.getBabyTile(variant + 10), px, py);
+              ctx.drawImage(this.tileset.getBabyTile(variant - 1), px, py);
+            }
+          }
+        }
+
+        for (let x = 1; x < MAPWIDTH - 1; x++) {
+          for (let y = 0; y < MAPHEIGHT2; y++) {
+            const ladder = mapData.ladder[x]?.[y] ?? 0;
+            if (ladder > 0) {
+              ctx.drawImage(
+                this.tileset.getBabyTile(ladder - 1),
+                (x - 1) * BABY_TILE,
+                y * BABY_HALF,
+              );
+            }
+          }
+        }
+
+        this.miniMapBitmap?.close();
+        this.miniMapBitmap = await createImageBitmap(canvas);
+      } catch (e) {
+        console.error('Failed to load mini-map preview:', e);
+        this.miniMapBitmap?.close();
+        this.miniMapBitmap = null;
+        break;
+      }
+    }
+
+    this.miniMapLoading = false;
   }
 
   // --- Door animation ---
