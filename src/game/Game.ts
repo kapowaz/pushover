@@ -162,6 +162,7 @@ export class Game {
     }
 
     this.gameScreen = GameScreen.TitleMenu;
+    this.music.requestMusic(100);
     this.loop.start();
   }
 
