@@ -58,15 +58,15 @@ const CONVEYOR_START_TILE = 2;
 
 const DOMINO_FONT_CHAR_WIDTH = 32;
 const DOMINO_FONT_CHAR_HEIGHT = 35;
-const DOMINO_FONT_CHARS =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,-+';
+const DOMINO_FONT_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,-+?';
 
 const TITLE_MESSAGES = [
-  'PUSHOVER 2 by +ishisoft',
+  'PUSHOVER web by +ishisoft',
   'original game copyright 1992 RED RAT and OCEAN',
   'CODING AND GRAPHICS - craig forrester',
   'ADDITIONAL GRAPHICS - jim riley',
   'ADDITIONAL CODING - rob emery',
+  'WEB CONVERSION - ?ben darlow',
   'ORIGINAL CONCEPT - chas partington',
   'ORIGINAL PUZZLES - harry nadler, helen elcock, avril rigby, don rigby, chris waterworth',
   'MUSIC + SFX - jonathan dunn, dean evans, keith tinman',
@@ -245,9 +245,7 @@ export class Game {
 
     const rubPromises: Promise<ImageBitmap>[] = [];
     for (let i = 0; i < RUBBLE_FRAME_COUNT; i++) {
-      rubPromises.push(
-        createImageBitmap(rubCanvas, i * RUBBLE_SIZE, 0, RUBBLE_SIZE, RUBBLE_SIZE),
-      );
+      rubPromises.push(createImageBitmap(rubCanvas, i * RUBBLE_SIZE, 0, RUBBLE_SIZE, RUBBLE_SIZE));
     }
     this.rubbleFrames = await Promise.all(rubPromises);
   }
@@ -363,17 +361,11 @@ export class Game {
       }
     }
 
-    if (
-      this.levelState === LevelState.Playing ||
-      this.levelState === LevelState.OpenExit
-    ) {
+    if (this.levelState === LevelState.Playing || this.levelState === LevelState.OpenExit) {
       this.timer.update();
     }
 
-    if (
-      this.dominoes.levelCompleteState === 1 &&
-      this.levelState === LevelState.Playing
-    ) {
+    if (this.dominoes.levelCompleteState === 1 && this.levelState === LevelState.Playing) {
       this.levelState = LevelState.OpenExit;
       this.sounds.playSound(SoundId.OpenDoor, this.map.door2X * TILE_SIZE);
     }
@@ -421,25 +413,13 @@ export class Game {
     const ordered = this.getOrderedPlayers();
 
     for (const player of ordered) {
-      player.draw(
-        this.renderer,
-        this.giSpriteSheet,
-        this.dominoSheet,
-        this.ladderDominoes,
-        false,
-      );
+      player.draw(this.renderer, this.giSpriteSheet, this.dominoSheet, this.ladderDominoes, false);
     }
 
     this.map.drawLadders(this.renderer, this.tileset);
 
     for (const player of ordered) {
-      player.draw(
-        this.renderer,
-        this.giSpriteSheet,
-        this.dominoSheet,
-        this.ladderDominoes,
-        true,
-      );
+      player.draw(this.renderer, this.giSpriteSheet, this.dominoSheet, this.ladderDominoes, true);
     }
 
     this.effects.draw(this.renderer);
@@ -471,10 +451,8 @@ export class Game {
         if (frameIndex >= 0 && frameIndex < this.dominoSheet.totalFrames) {
           const dxCol = this.dominoes.domX[x];
           const dyCol = this.dominoes.domY[x];
-          const drawX =
-            (x - 1) * TILE_SIZE - 22 + Math.trunc(dxCol?.[y]?.[i] ?? 0);
-          const drawY =
-            y * HALF_TILE - 30 + Math.trunc(dyCol?.[y]?.[i] ?? 0);
+          const drawX = (x - 1) * TILE_SIZE - 22 + Math.trunc(dxCol?.[y]?.[i] ?? 0);
+          const drawY = y * HALF_TILE - 30 + Math.trunc(dyCol?.[y]?.[i] ?? 0);
           this.renderer.blitImage(this.dominoSheet.getFrame(frameIndex), drawX, drawY);
         }
       }
@@ -491,8 +469,7 @@ export class Game {
       if (!rubbleFrame) continue;
 
       const drawX = (x - 1) * TILE_SIZE;
-      const drawY =
-        y * HALF_TILE - TILE_SIZE + Math.trunc(this.dominoes.rubbleY[x]?.[y] ?? 0);
+      const drawY = y * HALF_TILE - TILE_SIZE + Math.trunc(this.dominoes.rubbleY[x]?.[y] ?? 0);
       this.renderer.blitImage(rubbleFrame, drawX, drawY);
     }
   }
@@ -509,10 +486,7 @@ export class Game {
       .filter((pl) => pl.enabled)
       .map((pl) => ({ x: pl.GIX, y: pl.GIY }));
 
-    const { timer, counter } = this.numbers.shouldBeTransparent(
-      dominoPresence,
-      playerPositions,
-    );
+    const { timer, counter } = this.numbers.shouldBeTransparent(dominoPresence, playerPositions);
 
     this.numbers.drawTimer(
       this.renderer,
@@ -550,13 +524,9 @@ export class Game {
 
     this.titleMessageX -= TITLE_SCROLL_SPEED;
     const msg = TITLE_MESSAGES[this.titleMessageNum] ?? '';
-    if (
-      this.titleMessageX <
-      TITLE_MESSAGE_END_MARGIN + msg.length * -DOMINO_FONT_CHAR_WIDTH
-    ) {
+    if (this.titleMessageX < TITLE_MESSAGE_END_MARGIN + msg.length * -DOMINO_FONT_CHAR_WIDTH) {
       this.titleMessageX = TITLE_MESSAGE_RESET_X;
-      this.titleMessageNum =
-        (this.titleMessageNum + 1) % TITLE_MESSAGES.length;
+      this.titleMessageNum = (this.titleMessageNum + 1) % TITLE_MESSAGES.length;
     }
   }
 
@@ -707,97 +677,116 @@ export class Game {
   }
 
   private createProcessContext(player: Player): ProcessContext {
-    const game = this;
     const other = this.players.find((pl) => pl !== player) ?? null;
 
-    return {
-      contHit: (control: Control) => this.getPlayerKeys(player, control).some((k) => this.input.keyHit(k)),
-      contDown: (control: Control) => this.getPlayerKeys(player, control).some((k) => this.input.keyDown(k)),
+    const context: ProcessContext = Object.defineProperties(
+      {
+        contHit: (control: Control) =>
+          this.getPlayerKeys(player, control).some((k) => this.input.keyHit(k)),
+        contDown: (control: Control) =>
+          this.getPlayerKeys(player, control).some((k) => this.input.keyDown(k)),
 
-      ledge: this.map.ledge,
-      ladder: this.map.ladder,
-      domino: this.dominoes.domino,
-      domState: this.dominoes.domState,
-      domFrame: this.dominoes.domFrame,
-      domFrameChange: this.dominoes.domFrameChange,
-      domDelay: this.dominoes.domDelay,
-      domX: this.dominoes.domX,
-      domY: this.dominoes.domY,
-      rubble: this.dominoes.rubble,
-      background: this.map.background,
+        ledge: this.map.ledge,
+        ladder: this.map.ladder,
+        domino: this.dominoes.domino,
+        domState: this.dominoes.domState,
+        domFrame: this.dominoes.domFrame,
+        domFrameChange: this.dominoes.domFrameChange,
+        domDelay: this.dominoes.domDelay,
+        domX: this.dominoes.domX,
+        domY: this.dominoes.domY,
+        rubble: this.dominoes.rubble,
+        background: this.map.background,
 
-      get levelState() {
-        return game.levelState;
-      },
-      set levelState(v: LevelState) {
-        game.levelState = v;
-      },
-      get levelCompleteState() {
-        return game.dominoes.levelCompleteState;
-      },
-      get starter() {
-        return game.dominoes.starter;
-      },
-      set starter(v: boolean) {
-        game.dominoes.starter = v;
-      },
-      get mimics() {
-        return game.dominoes.mimics;
-      },
-      set mimics(v: number) {
-        game.dominoes.mimics = v;
-      },
-      get GIOut() {
-        return game.giOut;
-      },
-      set GIOut(v: number) {
-        game.giOut = v;
-      },
-      get renderFirst(): Player | null {
-        return game.renderFirst;
-      },
-      set renderFirst(v: Player | null) {
-        game.renderFirst = v;
-      },
-      get messageDelay() {
-        return game.messageDelay;
-      },
-      set messageDelay(v: number) {
-        game.messageDelay = v;
-      },
-      get messageDelayStyle() {
-        return game.messageDelayStyle;
-      },
-      set messageDelayStyle(v: number) {
-        game.messageDelayStyle = v;
-      },
+        otherPlayer: other,
 
-      otherPlayer: other,
+        playSound: (id: SoundId, x: number) => this.audio.playSound(id, x),
+        stopSound: (channel: number) => this.audio.stopSound(channel),
+        isSoundPlaying: () => true,
 
-      playSound: (id, x) => this.audio.playSound(id, x),
-      stopSound: (channel) => this.audio.stopSound(channel),
-      isSoundPlaying: () => true,
+        saveTokenState: () => {
+          // Will be used for token scoring with level select screen
+        },
 
-      saveTokenState: () => {
-        // Will be used for token scoring with level select screen
+        blowExploder: (x: number, y: number, layer: number) => {
+          this.dominoes.blowExploder(x, y, layer, this.map.ledge);
+        },
+
+        rebounder: (x: number, y: number, layer: number) => this.dominoes.rebounder(x, y, layer),
+      } as unknown as ProcessContext,
+      {
+        levelState: {
+          get: () => this.levelState,
+          set: (v: LevelState) => {
+            this.levelState = v;
+          },
+          enumerable: true,
+          configurable: true,
+        },
+        levelCompleteState: {
+          get: () => this.dominoes.levelCompleteState,
+          enumerable: true,
+          configurable: true,
+        },
+        starter: {
+          get: () => this.dominoes.starter,
+          set: (v: boolean) => {
+            this.dominoes.starter = v;
+          },
+          enumerable: true,
+          configurable: true,
+        },
+        mimics: {
+          get: () => this.dominoes.mimics,
+          set: (v: number) => {
+            this.dominoes.mimics = v;
+          },
+          enumerable: true,
+          configurable: true,
+        },
+        GIOut: {
+          get: () => this.giOut,
+          set: (v: number) => {
+            this.giOut = v;
+          },
+          enumerable: true,
+          configurable: true,
+        },
+        renderFirst: {
+          get: () => this.renderFirst,
+          set: (v: Player | null) => {
+            this.renderFirst = v;
+          },
+          enumerable: true,
+          configurable: true,
+        },
+        messageDelay: {
+          get: () => this.messageDelay,
+          set: (v: number) => {
+            this.messageDelay = v;
+          },
+          enumerable: true,
+          configurable: true,
+        },
+        messageDelayStyle: {
+          get: () => this.messageDelayStyle,
+          set: (v: number) => {
+            this.messageDelayStyle = v;
+          },
+          enumerable: true,
+          configurable: true,
+        },
       },
+    );
 
-      blowExploder: (x, y, layer) => {
-        this.dominoes.blowExploder(x, y, layer, this.map.ledge);
-      },
-
-      rebounder: (x, y, layer) => this.dominoes.rebounder(x, y, layer),
-    };
+    return context;
   }
 
   // --- Helpers ---
 
   private getOrderedPlayers(): Player[] {
     if (this.renderFirst && this.players.includes(this.renderFirst)) {
-      return [
-        this.renderFirst,
-        ...this.players.filter((pl) => pl !== this.renderFirst),
-      ];
+      return [this.renderFirst, ...this.players.filter((pl) => pl !== this.renderFirst)];
     }
     return [...this.players];
   }
