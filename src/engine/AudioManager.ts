@@ -233,4 +233,8 @@ export class AudioManager {
   get isMusicEnabled(): boolean {
     return this.musicEnabled;
   }
+
+  isSoundPlaying(channelId: number): boolean {
+    return this.activeSounds.has(channelId);
+  }
 }

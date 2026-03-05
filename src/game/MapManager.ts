@@ -24,6 +24,8 @@ export class MapManager {
 
   currentMap = 0;
   mapSet = 0;
+  author = '';
+  clue = '';
 
   async loadMap(mapSet: number, mapNumber: number): Promise<MapData> {
     const data = await loadMapData<MapData>(mapSet, mapNumber);
@@ -54,6 +56,8 @@ export class MapManager {
 
     this.currentMap = mapNumber;
     this.mapSet = mapSet;
+    this.author = data.author ?? '';
+    this.clue = data.clue ?? '';
 
     this.updateLedge();
 

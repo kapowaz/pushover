@@ -71,4 +71,7 @@ export interface ProfileData {
   levelsComplete: number[];
   tokens: number;
   helpDisplayed: boolean[];
+  prizeGot?: boolean[][];
+  costume?: number;
+  costumesUnlocked?: number;
 }

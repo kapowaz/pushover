@@ -21,6 +21,17 @@ export enum GameScreen {
   LevelSelect = 2,
 }
 
+export enum TitleMenu {
+  Main = 0,
+  Options = 1,
+  NewGame = 2,
+  LoadGame = 3,
+  EraseGame = 4,
+  EraseCheck = 5,
+  LevelSelect = 6,
+  LevelOptions = 7,
+}
+
 export enum MapSet {
   Original = 0,
   New = 1,
@@ -366,7 +377,37 @@ export enum MessageType {
   Died = 5,
   TooSlow = 6,
   TokenGain = 7,
+  Prize = 8,
+  CostumeUnlock = 9,
 }
+
+export const PRIZE_LEVELS = [11, 22, 33, 44, 55, 66, 77, 88, 99, 100] as const;
+
+export const PRIZE_MESSAGES_ORIGINAL = [
+  "THEY'RE WELL TASTY!",
+  "CAN YOU BELIEVE IT?",
+  'THREE CHEERS FOR SNACK FOOD!',
+  'MADE IN A PARALLEL DIMENSION!',
+  "THEY'RE NOT CURLY.",
+  "THEY'RE BETTER THAN CHUCK NORRIS.",
+  "THEY'RE MADE FROM POTATOES!",
+  "SHAME THEY'RE ALL THE SAME FLAVOUR.",
+  'DID YOU EXPECT ANYTHING ELSE?',
+  "THEY'RE SO GOOD IT HURTS!",
+] as const;
+
+export const PRIZE_MESSAGES_NEW = [
+  'THE PACKET COLOUR CHANGED!',
+  "THEY'RE A DELICACY IN MANY COUNTRIES!",
+  'SHOULD KEEP G.I. FED FOR A BIT.',
+  'CONTAINS 6 E NUMBERS!',
+  'KEEP UP THE GOOD WORK!',
+  "PO-TA-TOES! BOIL 'EM, MASH 'EM, ETC!",
+  'FOIL PACKED FOR FRESHNESS!',
+  "ALL THAT SALT CAN'T BE GOOD FOR YOU!",
+  'THEY NEED A MASCOT. A DOG IN A SUIT!',
+  'MOST DEFINITELY NOT FLOATY LIGHT.',
+] as const;
 
 // Max tiles for tileset
 export const MAX_TILES = 250;

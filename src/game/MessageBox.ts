@@ -1,7 +1,14 @@
 import { Renderer } from '../engine/Renderer';
 import { SpriteSheet } from '../engine/SpriteSheet';
 import { getImageUrl } from '../assets';
-import { GAME_WIDTH, MessageType, SoundId } from './constants';
+import {
+  GAME_WIDTH,
+  MessageType,
+  SoundId,
+  MapSet,
+  PRIZE_MESSAGES_ORIGINAL,
+  PRIZE_MESSAGES_NEW,
+} from './constants';
 
 const BORDER_TILE_SIZE = 32;
 const BORDER_COLUMNS = 13;
@@ -118,7 +125,14 @@ export class MessageBox {
     this.messageTextY[index] = yOffset;
   }
 
-  show(type: MessageType, tokens = 0, _negative = false): void {
+  show(
+    type: MessageType,
+    tokens = 0,
+    negative = false,
+    clue = '',
+    prizeVariation = 0,
+    mapSet = 0,
+  ): void {
     this.messageType = type;
     this.active = true;
     this.dismissed = false;
@@ -191,13 +205,49 @@ export class MessageBox {
       case MessageType.Pause:
         this.setSize(18, 12);
         this.setText(0, 'PAUSED', 0);
-        this.setText(4, 'ARRANGE THE DOMINOES SO THAT YOU CAN TOPPLE', 50);
-        this.setText(5, 'THEM ALL OVER. THE TRIGGER MUST FALL LAST.', 66);
+        if (negative && clue) {
+          if (clue.length > 39) {
+            const splitIdx = clue.lastIndexOf(' ', 39);
+            const split = splitIdx > 0 ? splitIdx : 39;
+            this.setText(4, clue.substring(0, split).toUpperCase(), 50);
+            this.setText(5, clue.substring(split).trim().toUpperCase(), 66);
+          } else {
+            this.setText(4, clue.toUpperCase(), 50);
+          }
+        } else {
+          this.setText(4, 'ARRANGE THE DOMINOES SO THAT YOU CAN TOPPLE', 50);
+          this.setText(5, 'THEM ALL OVER. THE TRIGGER MUST FALL LAST.', 66);
+        }
         this.setText(6, 'CONTINUE', 252);
         this.setText(7, 'RETRY', 276);
         this.setText(8, 'QUIT', 300);
         this.optionsStart = 6;
         this.optionsSelect = 6;
+        break;
+
+      case MessageType.Prize: {
+        this.setSize(15, 4);
+        this.renderMode = RenderMode.OverlayOnly;
+        this.setText(0, 'YOU FOUND A BAG OF MEGA TATERS!', 8);
+        const msgs =
+          mapSet === MapSet.New ? PRIZE_MESSAGES_NEW : PRIZE_MESSAGES_ORIGINAL;
+        this.setText(1, msgs[prizeVariation] ?? '', 40);
+        this.optionsStart = 0;
+        this.optionsSelect = 0;
+        break;
+      }
+
+      case MessageType.CostumeUnlock:
+        this.setSize(18, 8);
+        this.renderMode = RenderMode.OverlayOnly;
+        this.setText(0, 'CONGRATULATIONS!!', 0);
+        this.setText(2, 'YOU HAVE UNLOCKED A NEW', 32);
+        this.setText(3, 'PLAYABLE CHARACTER!', 64);
+        this.setText(6, 'YOU CAN SELECT HIM IN THE PROFILE OPTIONS', 120);
+        this.setText(7, 'SCREEN, ACCESSIBLE BY GOING LEFT FROM THE', 144);
+        this.setText(8, 'ORIGINAL LEVEL SELECT SCREEN.', 168);
+        this.optionsStart = 0;
+        this.optionsSelect = 0;
         break;
     }
   }
