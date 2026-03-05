@@ -14,6 +14,7 @@ import { EffectsManager } from './Effects';
 import { GameTimer } from './Timer';
 import { ProfileManager } from './Profiles';
 import { NumberDisplay } from './Numbers';
+import { MessageBox, RenderMode } from './MessageBox';
 import { getImageUrl } from '../assets';
 import {
   GAME_WIDTH,
@@ -35,6 +36,7 @@ import {
   SoundId,
   Control,
   MESSAGE_DELAY,
+  MessageType,
   LAST_MAP,
 } from './constants';
 
@@ -61,7 +63,8 @@ const DOMINO_FONT_CHAR_HEIGHT = 35;
 const DOMINO_FONT_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,-+?';
 
 const TITLE_MESSAGES = [
-  'PUSHOVER web by +ishisoft',
+  'PUSHOVER for WEB',
+  'based on PUSHOVER 2 by +ishisoft',
   'original game copyright 1992 RED RAT and OCEAN',
   'CODING AND GRAPHICS - craig forrester',
   'ADDITIONAL GRAPHICS - jim riley',
@@ -70,7 +73,6 @@ const TITLE_MESSAGES = [
   'ORIGINAL CONCEPT - chas partington',
   'ORIGINAL PUZZLES - harry nadler, helen elcock, avril rigby, don rigby, chris waterworth',
   'MUSIC + SFX - jonathan dunn, dean evans, keith tinman',
-  'THANKS TO - the people at www.retroremakes.com',
 ];
 
 const TITLE_SCROLL_SPEED = 2;
@@ -95,6 +97,7 @@ export class Game {
   private timer: GameTimer;
   private profiles: ProfileManager;
   private numbers: NumberDisplay;
+  private messageBox: MessageBox;
 
   private levelState: LevelState = LevelState.OpenDoor;
   private currentMap = 1;
@@ -104,7 +107,6 @@ export class Game {
   private messageDelay = 0;
   private messageDelayStyle = 0;
   private screenFade = 255;
-  private paused = false;
   private levelLoading = false;
 
   private gameScreen: GameScreen = GameScreen.TitleMenu;
@@ -140,6 +142,7 @@ export class Game {
     this.timer = new GameTimer();
     this.profiles = new ProfileManager();
     this.numbers = new NumberDisplay();
+    this.messageBox = new MessageBox();
 
     this.loop = new GameLoop(
       () => {
@@ -183,12 +186,13 @@ export class Game {
       CONVEYOR_FRAMES,
     );
 
-    const [, , , , , backdrop, front, front2, dominoFont, muteIcon] = await Promise.all([
+    const [, , , , , , backdrop, front, front2, dominoFont, muteIcon] = await Promise.all([
       this.giSpriteSheet.load(),
       this.numbers.load(),
       this.effects.loadImages(),
       this.sounds.loadAll(),
       this.conveyorSheet.load(),
+      this.messageBox.load(),
       this.assets.loadImage(getImageUrl('image/title/backdrop.png')),
       this.assets.loadImage(getImageUrl('image/title/front.png')),
       this.assets.loadImage(getImageUrl('image/title/front2.png')),
@@ -294,7 +298,7 @@ export class Game {
     this.screenFade = 255;
     this.messageDelay = 0;
     this.messageDelayStyle = 0;
-    this.paused = false;
+    this.messageBox.hide();
 
     this.effects.reset();
 
@@ -330,15 +334,20 @@ export class Game {
       return;
     }
 
+    if (this.messageBox.isActive) {
+      this.updateMessageBox();
+      return;
+    }
+
     if (this.screenFade > 0) {
       this.screenFade -= FADE_SPEED;
       if (this.screenFade < 0) this.screenFade = 0;
     }
 
-    if (this.input.keyHit('Escape')) {
-      this.paused = !this.paused;
+    if (this.input.keyHit('Escape') || this.input.keyHit('KeyP')) {
+      this.showMessage(MessageType.Pause);
+      return;
     }
-    if (this.paused) return;
 
     this.processDoors();
     this.effects.process();
@@ -378,15 +387,101 @@ export class Game {
       for (const player of this.players) {
         player.GIShrugNeeded = true;
       }
+      this.messageDelayStyle = this.dominoes.levelCompleteMessage ?? MessageType.NotAllToppled;
       this.messageDelay = MESSAGE_DELAY;
     }
 
     if (this.messageDelay > 0) {
       this.messageDelay--;
       if (this.messageDelay === 0) {
-        this.triggerLevelLoad(this.currentMap);
+        this.showMessage(this.messageDelayStyle as MessageType);
       }
     }
+  }
+
+  private showMessage(type: MessageType): void {
+    const tokens = this.profiles.active?.tokens ?? 0;
+    this.messageBox.show(type, tokens, this.timer.negative);
+  }
+
+  private updateMessageBox(): void {
+    const result = this.messageBox.update(
+      (code) => this.input.keyHit(code),
+      (id, x) => this.sounds.playSound(id, x),
+    );
+
+    if (result === null) return;
+
+    const type = this.messageBox.type;
+    this.messageBox.hide();
+
+    switch (type) {
+      case MessageType.Pause:
+        this.handlePauseResult(result);
+        break;
+
+      case MessageType.TokenGain:
+        this.profiles.addToken();
+        this.proceedToNextLevel();
+        break;
+
+      case MessageType.TooSlow:
+        this.handleFailureResult(result, true);
+        break;
+
+      case MessageType.NotAllToppled:
+      case MessageType.StillHolding:
+      case MessageType.Crashed:
+      case MessageType.Died:
+        this.handleFailureResult(result, false);
+        break;
+    }
+  }
+
+  private handlePauseResult(option: number): void {
+    switch (option) {
+      case 6: // Continue
+        break;
+      case 7: // Retry
+        this.triggerLevelLoad(this.currentMap);
+        break;
+      case 8: // Quit
+        this.returnToTitle();
+        break;
+    }
+  }
+
+  private handleFailureResult(option: number, isTooSlow: boolean): void {
+    switch (option) {
+      case 6: // Use Token
+        this.profiles.useToken();
+        if (isTooSlow) {
+          this.proceedToNextLevel();
+        } else {
+          this.triggerLevelLoad(this.currentMap);
+        }
+        break;
+      case 7: // Replay
+        this.triggerLevelLoad(this.currentMap);
+        break;
+      case 8: // Quit
+        this.returnToTitle();
+        break;
+    }
+  }
+
+  private proceedToNextLevel(): void {
+    this.currentMap++;
+    const lastMap = LAST_MAP[this.mapSet];
+    if (lastMap !== undefined && this.currentMap > lastMap) {
+      this.currentMap = 1;
+    }
+    this.triggerLevelLoad(this.currentMap);
+  }
+
+  private returnToTitle(): void {
+    this.gameScreen = GameScreen.TitleMenu;
+    this.music.requestMusic(100);
   }
 
   // --- Render ---
@@ -398,6 +493,13 @@ export class Game {
 
     if (this.gameScreen === GameScreen.TitleMenu) {
       this.renderTitleMenu();
+      this.drawMuteIcon();
+      return;
+    }
+
+    if (this.messageBox.isActive && this.messageBox.renderMode === RenderMode.OverlayOnly) {
+      this.messageBox.draw(this.renderer);
+      this.drawMuteIcon();
       return;
     }
 
@@ -424,6 +526,12 @@ export class Game {
 
     this.effects.draw(this.renderer);
     this.drawHUD();
+
+    if (this.messageBox.isActive) {
+      this.messageBox.draw(this.renderer);
+    }
+
+    this.drawMuteIcon();
 
     if (this.screenFade > 0) {
       const ctx = this.renderer.getContext();
@@ -504,6 +612,9 @@ export class Game {
       counter,
     );
 
+  }
+
+  private drawMuteIcon(): void {
     if (this.audio.isMuted) {
       this.renderer.blitImage(this.muteIcon, 16, 8);
     }
@@ -647,12 +758,11 @@ export class Game {
           bgCol[bgY] = tile - 1;
         } else {
           this.sounds.playSound(SoundId.CloseDoor, this.map.door2X * TILE_SIZE);
-          this.currentMap++;
-          const lastMap = LAST_MAP[this.mapSet];
-          if (lastMap !== undefined && this.currentMap > lastMap) {
-            this.currentMap = 1;
+          if (this.timer.negative) {
+            this.showMessage(MessageType.TooSlow);
+          } else {
+            this.showMessage(MessageType.TokenGain);
           }
-          this.triggerLevelLoad(this.currentMap);
         }
         break;
       }

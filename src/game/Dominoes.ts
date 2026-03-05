@@ -51,6 +51,7 @@ export class DominoManager {
   mimics = 0;
   allowedCount = 3;
   levelCompleteState = 0;
+  levelCompleteMessage: MessageType | undefined = undefined;
 
   _ledge!: number[][];
   private _ladder!: number[][];
@@ -87,6 +88,7 @@ export class DominoManager {
     this.mimics = 0;
     this.allowedCount = 3;
     this.levelCompleteState = 0;
+    this.levelCompleteMessage = undefined;
   }
 
   dominoPresent(type: DominoType): boolean {
@@ -1697,6 +1699,7 @@ export class DominoManager {
           this.levelCompleteState = 1;
         } else {
           this.levelCompleteState = 2;
+          this.levelCompleteMessage = result.message;
         }
       }
     }

@@ -45,6 +45,24 @@ export class ProfileManager {
     this.save();
   }
 
+  addToken(): void {
+    const profile = this.active;
+    if (profile) {
+      profile.tokens++;
+      this.save();
+    }
+  }
+
+  useToken(): boolean {
+    const profile = this.active;
+    if (profile && profile.tokens > 0) {
+      profile.tokens--;
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
   getAll(): ProfileData[] {
     return this.profiles;
   }
