@@ -2,8 +2,8 @@ import { style } from '@vanilla-extract/css';
 
 export const gameContainer = style({
   position: 'relative',
-  width: 640,
-  height: 480,
+  width: 'min(640px, 100%, calc(100vh * 4 / 3))',
+  aspectRatio: '4 / 3',
   imageRendering: 'pixelated',
 });
 
