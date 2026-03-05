@@ -11,11 +11,14 @@ export class AudioManager {
   private activeSounds = new Map<number, ActiveSound>();
   private nextChannel = 0;
   private musicElement: HTMLAudioElement | null = null;
+  private musicSource: MediaElementAudioSourceNode | null = null;
   private musicGain: GainNode;
   private fadeInterval: ReturnType<typeof setInterval> | null = null;
   private soundEnabled = true;
   private musicEnabled = true;
   private muted = false;
+  private pendingPlayback = false;
+  private resumeController: AbortController | null = null;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -97,11 +100,12 @@ export class AudioManager {
     };
 
     try {
-      const mediaSource = this.ctx.createMediaElementSource(el);
-      mediaSource.connect(this.musicGain);
+      this.musicSource = this.ctx.createMediaElementSource(el);
+      this.musicSource.connect(this.musicGain);
       this.musicElement = el;
     } catch {
       console.warn(`Failed to create media source for: ${url}`);
+      this.musicSource = null;
       this.musicElement = null;
     }
   }
@@ -109,15 +113,42 @@ export class AudioManager {
   playMusic(): void {
     if (!this.musicEnabled || !this.musicElement) return;
 
+    this.musicGain.gain.value = this.muted ? 0 : 1;
+
     if (this.ctx.state === 'suspended') {
-      void this.ctx.resume();
+      this.pendingPlayback = true;
+      this.waitForInteraction();
+      return;
     }
 
-    this.musicGain.gain.value = 1;
+    this.pendingPlayback = false;
     void this.musicElement.play();
   }
 
+  private waitForInteraction(): void {
+    if (this.resumeController) return;
+    this.resumeController = new AbortController();
+    const { signal } = this.resumeController;
+
+    const handler = () => {
+      this.resumeController?.abort();
+      this.resumeController = null;
+
+      void this.ctx.resume().then(() => {
+        if (this.pendingPlayback && this.musicElement && this.musicEnabled) {
+          this.pendingPlayback = false;
+          void this.musicElement.play();
+        }
+      });
+    };
+
+    for (const event of ['click', 'keydown', 'touchstart', 'pointerdown']) {
+      document.addEventListener(event, handler, { signal });
+    }
+  }
+
   stopMusic(fadeMs?: number): void {
+    this.pendingPlayback = false;
     if (!this.musicElement) return;
 
     if (this.fadeInterval) {
@@ -147,7 +178,7 @@ export class AudioManager {
           this.musicElement.pause();
           this.musicElement.currentTime = 0;
         }
-        this.musicGain.gain.value = 1;
+        this.musicGain.gain.value = this.muted ? 0 : 1;
       } else {
         this.musicGain.gain.value = Math.max(0, decrement * remaining);
       }
