@@ -16,7 +16,7 @@ export class AudioManager {
   private fadeInterval: ReturnType<typeof setInterval> | null = null;
   private soundEnabled = true;
   private musicEnabled = true;
-  private muted = false;
+  private muted = localStorage.getItem('pushover_muted') === 'true';
   private pendingPlayback = false;
   private resumeController: AbortController | null = null;
 
@@ -203,6 +203,7 @@ export class AudioManager {
 
   toggleMute(): void {
     this.muted = !this.muted;
+    localStorage.setItem('pushover_muted', String(this.muted));
     this.musicGain.gain.value = this.muted ? 0 : 1;
     if (this.muted) {
       for (const [, active] of this.activeSounds) {
