@@ -40,7 +40,7 @@ export class AudioManager {
   }
 
   playSound(id: number, panX?: number): number {
-    if (!this.soundEnabled) return -1;
+    if (!this.soundEnabled || this.muted) return -1;
 
     const buffer = this.buffers.get(id);
     if (!buffer) return -1;
@@ -172,10 +172,11 @@ export class AudioManager {
 
   toggleMute(): void {
     this.muted = !this.muted;
-    this.setSoundEnabled(!this.muted);
-    this.setMusicEnabled(!this.muted);
-    if (!this.muted) {
-      this.playMusic();
+    this.musicGain.gain.value = this.muted ? 0 : 1;
+    if (this.muted) {
+      for (const [, active] of this.activeSounds) {
+        active.gain.gain.value = 0;
+      }
     }
   }
 

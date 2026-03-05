@@ -113,6 +113,7 @@ export class Game {
   private titleFront2!: HTMLImageElement;
   private conveyorSheet!: SpriteSheet;
   private dominoFontImage!: HTMLImageElement;
+  private muteIcon!: HTMLImageElement;
   private conveyorFrame = 0;
   private conveyorTick = false;
   private titleMessageX = GAME_WIDTH;
@@ -181,7 +182,7 @@ export class Game {
       CONVEYOR_FRAMES,
     );
 
-    const [, , , , , backdrop, front, front2, dominoFont] = await Promise.all([
+    const [, , , , , backdrop, front, front2, dominoFont, muteIcon] = await Promise.all([
       this.giSpriteSheet.load(),
       this.numbers.load(),
       this.effects.loadImages(),
@@ -191,12 +192,14 @@ export class Game {
       this.assets.loadImage(getImageUrl('image/title/front.png')),
       this.assets.loadImage(getImageUrl('image/title/front2.png')),
       this.assets.loadImage(getImageUrl('image/title/domino-font.png')),
+      this.assets.loadImage(getImageUrl('image/mute.png')),
     ]);
 
     this.titleBackdrop = backdrop;
     this.titleFront = front;
     this.titleFront2 = front2;
     this.dominoFontImage = dominoFont;
+    this.muteIcon = muteIcon;
   }
 
   private async loadDominoSprites(dominoSet: number): Promise<void> {
@@ -525,6 +528,10 @@ export class Game {
       this.profiles.active?.tokens ?? 0,
       counter,
     );
+
+    if (this.audio.isMuted) {
+      this.renderer.blitImage(this.muteIcon, 16, 8);
+    }
   }
 
   // --- Title menu ---
