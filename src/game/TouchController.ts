@@ -60,6 +60,14 @@ const GI_SPRITE_RENDER_OFFSET_X = -4;
 const GI_SPRITE_RENDER_OFFSET_Y = -32;
 const PLAYER_TAP_PADDING = 6;
 
+// Gap hit area for tapping between adjacent dominoes to enter PushWait.
+// Dominos are drawn at ((x-1)*32 - 22, y*16 - 30) with sprite size 72×38.
+// The visual gap between two standing dominos is centered on the tile boundary.
+const GAP_HIT_HALF_WIDTH = 16;
+const GAP_DOMINO_RENDER_OFFSET_Y = -30;
+const GAP_DOMINO_SPRITE_HEIGHT = 38;
+const GAP_HIT_VERTICAL_PADDING = 6;
+
 export enum PathSegmentType {
   WalkLeft,
   WalkRight,
@@ -116,7 +124,9 @@ export class TouchController {
   private pathActive = false;
   private fireAtDestination = false;
   private edgeJumpControl: Control | null = null;
-  private deferredSelfTap = false;
+  private deferredPushWaitCancel = false;
+  private deferredTapPosition: TouchPoint | null = null;
+  private pushDirection: Control | null = null;
 
   private pendingMenuTap: { index: number } | null = null;
   private pendingLevelTap: { level: number } | null = null;
@@ -156,7 +166,9 @@ export class TouchController {
     this.pathActive = false;
     this.fireAtDestination = false;
     this.edgeJumpControl = null;
-    this.deferredSelfTap = false;
+    this.deferredPushWaitCancel = false;
+    this.deferredTapPosition = null;
+    this.pushDirection = null;
     this.activeControls.clear();
     this.hitControls.clear();
     this.consumedHits.clear();
@@ -412,16 +424,28 @@ export class TouchController {
     if (!player || !grid) return;
 
     if (doubleTap) {
-      this.deferredSelfTap = false;
+      this.deferredPushWaitCancel = false;
+      this.deferredTapPosition = null;
       this.handleDoubleTap(doubleTap, player, grid);
       return;
     }
 
-    if (this.deferredSelfTap && !this.touch.doubleTapPossible) {
-      this.deferredSelfTap = false;
+    if (this.deferredPushWaitCancel && !this.touch.doubleTapPossible) {
+      this.deferredPushWaitCancel = false;
+      if (player.GIState === GIState.PushWait && this.deferredTapPosition) {
+        const behindDir = this.detectBehindDominoTap(this.deferredTapPosition, player, grid);
+        if (behindDir !== null) {
+          this.deferredTapPosition = null;
+          this.pushDirection = behindDir;
+          this.activeControls.add(behindDir);
+          return;
+        }
+      }
+      this.deferredTapPosition = null;
       this.cancelPath();
-      this.hitControls.add(Control.Up);
-      this.activeControls.add(Control.Up);
+      this.pushDirection = null;
+      this.hitControls.add(Control.Down);
+      this.activeControls.add(Control.Down);
       return;
     }
 
@@ -449,10 +473,6 @@ export class TouchController {
     }
   }
 
-  private isPlayerTile(tileX: number, tileY: number, player: Player): boolean {
-    return tileX === player.GIX && (tileY === player.GIY || tileY === player.GIY + 1);
-  }
-
   private isPlayerSpriteTap(pos: TouchPoint, player: Player): boolean {
     const spriteX = (player.GIX - 1) * TILE_SIZE + GI_SPRITE_RENDER_OFFSET_X + player.GIXOffset;
     const spriteY = player.GIY * HALF_TILE + GI_SPRITE_RENDER_OFFSET_Y + player.GIYOffset;
@@ -463,6 +483,59 @@ export class TouchController {
       pos.y >= spriteY - PLAYER_TAP_PADDING &&
       pos.y < spriteY + GI_SPRITE_HEIGHT + PLAYER_TAP_PADDING
     );
+  }
+
+  private detectGapTap(
+    pos: TouchPoint,
+    player: Player,
+    grid: GridAccess,
+  ): Control | null {
+    const py = player.GIY;
+    const gapTop = py * HALF_TILE + GAP_DOMINO_RENDER_OFFSET_Y - GAP_HIT_VERTICAL_PADDING;
+    const gapBottom = gapTop + GAP_DOMINO_SPRITE_HEIGHT + GAP_HIT_VERTICAL_PADDING * 2;
+
+    if (pos.y < gapTop || pos.y >= gapBottom) return null;
+
+    const leftBoundary = (player.GIX - 1) * TILE_SIZE;
+    if (
+      pos.x >= leftBoundary - GAP_HIT_HALF_WIDTH &&
+      pos.x < leftBoundary + GAP_HIT_HALF_WIDTH &&
+      this.hasDominoAt(grid, player.GIX - 1, py)
+    ) {
+      return Control.Left;
+    }
+
+    const rightBoundary = player.GIX * TILE_SIZE;
+    if (
+      pos.x >= rightBoundary - GAP_HIT_HALF_WIDTH &&
+      pos.x < rightBoundary + GAP_HIT_HALF_WIDTH &&
+      this.hasDominoAt(grid, player.GIX + 1, py)
+    ) {
+      return Control.Right;
+    }
+
+    return null;
+  }
+
+  private detectBehindDominoTap(
+    pos: TouchPoint,
+    player: Player,
+    grid: GridAccess,
+  ): Control | null {
+    const py = player.GIY;
+    const domTop = py * HALF_TILE + GAP_DOMINO_RENDER_OFFSET_Y - GAP_HIT_VERTICAL_PADDING;
+    const domBottom = domTop + GAP_DOMINO_SPRITE_HEIGHT + GAP_HIT_VERTICAL_PADDING * 2;
+    if (pos.y < domTop || pos.y >= domBottom) return null;
+
+    const behindX = player.GILastMoved === 0 ? player.GIX + 1 : player.GIX;
+    const newDir = player.GILastMoved === 0 ? Control.Right : Control.Left;
+
+    const tileX = this.canvasToGridX(pos.x);
+    if (tileX === behindX && this.hasDominoAt(grid, behindX, py)) {
+      return newDir;
+    }
+
+    return null;
   }
 
   private isStationary(player: Player): boolean {
@@ -483,16 +556,24 @@ export class TouchController {
     const tileY = this.canvasToGridY(pos.y);
     const py = player.GIY;
 
-    if (player.GIState === GIState.Stand) {
-      if (this.isPlayerSpriteTap(pos, player)) {
-        if (this.hasDominoAt(grid, player.GIX, py)) {
-          this.cancelPath();
-          this.hitControls.add(Control.Fire);
-          this.activeControls.add(Control.Fire);
-          return;
-        }
+    if (player.GIState === GIState.PushWait) {
+      this.deferredPushWaitCancel = false;
+      if (this.isPlayerSpriteTap(pos, player) && this.pushDirection) {
+        const dir = this.pushDirection;
+        this.cancelPath();
+        this.hitControls.add(Control.Fire);
+        this.activeControls.add(Control.Fire);
+        this.activeControls.add(dir);
+        return;
       }
+      this.cancelPath();
+      this.pushDirection = null;
+      this.hitControls.add(Control.Down);
+      this.activeControls.add(Control.Down);
+      return;
+    }
 
+    if (player.GIState === GIState.Stand) {
       if (this.isAdjacentLedgeJump(tileX, tileY, player, grid)) {
         this.cancelPath();
         this.initiateEdgeJump(tileX, player, grid);
@@ -517,19 +598,14 @@ export class TouchController {
 
     if (player.GIDomino === 0) {
       const dominoPos = this.findDominoNearTap(tileX, tileY, grid);
-      if (dominoPos) {
+      if (dominoPos && !(dominoPos.x === player.GIX && dominoPos.y === py)) {
         this.cancelPath();
-        if (dominoPos.x === player.GIX && dominoPos.y === py) {
-          this.hitControls.add(Control.Fire);
-          this.activeControls.add(Control.Fire);
-        } else {
-          this.planPath(player.GIX, py, dominoPos.x, dominoPos.y, grid);
-          if (this.path.length > 0) {
-            this.pathActive = true;
-            this.pathIndex = 0;
-            this.fireAtDestination = true;
-            this.advancePath(player, grid);
-          }
+        this.planPath(player.GIX, py, dominoPos.x, dominoPos.y, grid);
+        if (this.path.length > 0) {
+          this.pathActive = true;
+          this.pathIndex = 0;
+          this.fireAtDestination = true;
+          this.advancePath(player, grid);
         }
         return;
       }
@@ -545,27 +621,21 @@ export class TouchController {
     const tileY = this.canvasToGridY(pos.y);
 
     if (player.GIState === GIState.PushWait) {
-      const sameRow = tileY === player.GIY || tileY === player.GIY + 1;
-      if (tileX === player.GIX && sameRow) {
-        this.cancelPath();
-        this.hitControls.add(Control.Fire);
-        this.activeControls.add(Control.Fire);
-        this.activeControls.add(Control.Left);
+      if (this.isPlayerSpriteTap(pos, player) && this.touch.doubleTapPossible) {
+        this.deferredPushWaitCancel = true;
+        this.deferredTapPosition = pos;
         return;
       }
-      if (tileX === player.GIX + 1 && sameRow) {
-        this.cancelPath();
-        this.hitControls.add(Control.Fire);
-        this.activeControls.add(Control.Fire);
-        this.activeControls.add(Control.Right);
+      const behindDir = this.detectBehindDominoTap(pos, player, grid);
+      if (behindDir !== null) {
+        this.pushDirection = behindDir;
+        this.activeControls.add(behindDir);
         return;
       }
-      if (sameRow) {
-        this.cancelPath();
-        this.hitControls.add(Control.Down);
-        this.activeControls.add(Control.Down);
-        return;
-      }
+      this.cancelPath();
+      this.pushDirection = null;
+      this.hitControls.add(Control.Down);
+      this.activeControls.add(Control.Down);
       return;
     }
 
@@ -578,15 +648,25 @@ export class TouchController {
       return;
     }
 
-    if (this.isPlayerSpriteTap(pos, player)) {
-      if (player.GIState === GIState.Stand) {
-        if (this.hasDominoAt(grid, player.GIX, player.GIY) && this.touch.doubleTapPossible) {
-          this.deferredSelfTap = true;
-          return;
-        }
+    if (player.GIState === GIState.Stand && this.hasDominoAt(grid, player.GIX, player.GIY)) {
+      const gapDir = this.detectGapTap(pos, player, grid);
+      if (gapDir !== null) {
         this.cancelPath();
+        this.pushDirection = gapDir;
         this.hitControls.add(Control.Up);
         this.activeControls.add(Control.Up);
+        this.activeControls.add(gapDir);
+        return;
+      }
+    }
+
+    if (this.isPlayerSpriteTap(pos, player)) {
+      if (player.GIState === GIState.Stand) {
+        if (!this.hasDominoAt(grid, player.GIX, player.GIY)) {
+          this.cancelPath();
+          this.hitControls.add(Control.Up);
+          this.activeControls.add(Control.Up);
+        }
         return;
       }
       if (player.GIState === GIState.HoldLeft || player.GIState === GIState.HoldRight) {

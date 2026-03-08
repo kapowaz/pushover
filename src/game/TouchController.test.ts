@@ -317,7 +317,7 @@ describe('TouchController', () => {
       grid.ledge[5]![10] = 1;
     });
 
-    it('tap on player in Stand triggers push position (Up control)', () => {
+    it('tap on player in Stand triggers Up when not on a domino', () => {
       const canvasX = (5 - 1) * 32 + 16;
       const canvasY = 10 * 16 + 8;
       const touch = makeTouchManager({ x: canvasX, y: canvasY });
@@ -327,6 +327,117 @@ describe('TouchController', () => {
       tc.update(playingState());
 
       expect(tc.isControlHit(Control.Up)).toBe(true);
+    });
+
+    it('tap on player in Stand does nothing when standing on a domino', () => {
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      const canvasX = (5 - 1) * 32 + 16;
+      const canvasY = 10 * 16 + 8;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Up)).toBe(false);
+      expect(tc.isControlActive(Control.Up)).toBe(false);
+    });
+
+    it('tap on left gap triggers Up+Left and sets push direction left', () => {
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.ledge[4]![10] = 1;
+      grid.domino[4]![10]![0] = DominoType.Standard;
+      // Tap at the tile boundary between grid 4 and 5 (the visual gap)
+      const canvasX = (5 - 1) * 32;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Up)).toBe(true);
+      expect(tc.isControlActive(Control.Left)).toBe(true);
+      expect((tc as any).pushDirection).toBe(Control.Left);
+    });
+
+    it('tap on right gap triggers Up+Right and sets push direction right', () => {
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.ledge[6]![10] = 1;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+      // Tap at the tile boundary between grid 5 and 6 (the visual gap)
+      const canvasX = 5 * 32;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Up)).toBe(true);
+      expect(tc.isControlActive(Control.Right)).toBe(true);
+      expect((tc as any).pushDirection).toBe(Control.Right);
+    });
+
+    it('tap on domino sprite top area detects gap', () => {
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.ledge[4]![10] = 1;
+      grid.domino[4]![10]![0] = DominoType.Standard;
+      // Tap near the top of the domino sprite (y*16 - 30 is sprite top)
+      const canvasX = (5 - 1) * 32;
+      const canvasY = 10 * 16 - 28;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Up)).toBe(true);
+    });
+
+    it('tap well above domino sprites does not trigger gap', () => {
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.ledge[4]![10] = 1;
+      grid.domino[4]![10]![0] = DominoType.Standard;
+      const canvasX = (5 - 1) * 32;
+      const canvasY = 10 * 16 - 50;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Up)).toBe(false);
+    });
+
+    it('tap far from gap boundary does not trigger gap', () => {
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.ledge[6]![10] = 1;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+      // Tap at the far right of the adjacent tile (well past the gap)
+      const canvasX = (6 - 1) * 32 + 28;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Up)).toBe(false);
+    });
+
+    it('tap near gap without adjacent domino does not trigger', () => {
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.ledge[6]![10] = 1;
+      const canvasX = 5 * 32;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Up)).toBe(false);
     });
 
     it('tap on reachable tile plans a path', () => {
@@ -370,21 +481,7 @@ describe('TouchController', () => {
       expect(tc.isControlActive(Control.Right)).toBe(false);
     });
 
-    it('defers self-tap when standing on a domino and double-tap is possible', () => {
-      grid.domino[5]![10]![0] = DominoType.Standard;
-      const canvasX = (5 - 1) * 32 + 16;
-      const canvasY = 10 * 16 + 8;
-      const touch = makeTouchManager({ x: canvasX, y: canvasY }, null, null, true);
-      tc = new TouchController(touch);
-      tc.setGrid(grid);
-      tc.setPlayer(player);
-      tc.update(playingState());
-
-      expect(tc.isControlHit(Control.Up)).toBe(false);
-      expect(tc.isControlActive(Control.Up)).toBe(false);
-    });
-
-    it('self-tap fires immediately when no domino present even with double-tap possible', () => {
+    it('self-tap fires Up when no domino present even with double-tap possible', () => {
       const canvasX = (5 - 1) * 32 + 16;
       const canvasY = 10 * 16 + 8;
       const touch = makeTouchManager({ x: canvasX, y: canvasY }, null, null, true);
@@ -394,28 +491,6 @@ describe('TouchController', () => {
       tc.update(playingState());
 
       expect(tc.isControlHit(Control.Up)).toBe(true);
-    });
-
-    it('deferred self-tap resolves to Up when double-tap window expires', () => {
-      grid.domino[5]![10]![0] = DominoType.Standard;
-      const canvasX = (5 - 1) * 32 + 16;
-      const canvasY = 10 * 16 + 8;
-      const touch = makeTouchManager({ x: canvasX, y: canvasY }, null, null, true);
-      tc = new TouchController(touch);
-      tc.setGrid(grid);
-      tc.setPlayer(player);
-      tc.update(playingState());
-
-      expect(tc.isControlHit(Control.Up)).toBe(false);
-
-      const expiredTouch = makeTouchManager(null, null, null, false);
-      const tc2 = new TouchController(expiredTouch);
-      tc2.setGrid(grid);
-      tc2.setPlayer(player);
-      (tc2 as any).deferredSelfTap = true;
-      tc2.update(playingState());
-
-      expect(tc2.isControlHit(Control.Up)).toBe(true);
     });
 
     it('single tap on player sprite edge while holding does not start path', () => {
@@ -435,8 +510,7 @@ describe('TouchController', () => {
       expect(tc.isControlActive(Control.Right)).toBe(false);
     });
 
-    it('single tap on player sprite top while standing triggers Up', () => {
-      // Tap on the player's head area
+    it('single tap on player sprite top while standing triggers Up when not on domino', () => {
       const canvasX = (5 - 1) * 32 + 16;
       const canvasY = 10 * 16 - 28;
       const touch = makeTouchManager({ x: canvasX, y: canvasY });
@@ -446,29 +520,6 @@ describe('TouchController', () => {
       tc.update(playingState());
 
       expect(tc.isControlHit(Control.Up)).toBe(true);
-    });
-
-    it('deferred self-tap is cancelled by a double-tap (pickup)', () => {
-      grid.domino[5]![10]![0] = DominoType.Standard;
-      const canvasX = (5 - 1) * 32 + 16;
-      const canvasY = 10 * 16 + 8;
-      const touch = makeTouchManager({ x: canvasX, y: canvasY }, null, null, true);
-      tc = new TouchController(touch);
-      tc.setGrid(grid);
-      tc.setPlayer(player);
-      tc.update(playingState());
-
-      expect(tc.isControlHit(Control.Up)).toBe(false);
-
-      const dtTouch = makeTouchManager(null, { x: canvasX, y: canvasY });
-      const tc2 = new TouchController(dtTouch);
-      tc2.setGrid(grid);
-      tc2.setPlayer(player);
-      (tc2 as any).deferredSelfTap = true;
-      tc2.update(playingState());
-
-      expect(tc2.isControlHit(Control.Fire)).toBe(true);
-      expect(tc2.isControlHit(Control.Up)).toBe(false);
     });
   });
 
@@ -486,7 +537,7 @@ describe('TouchController', () => {
       grid.ledge[5]![10] = 1;
     });
 
-    it('double tap on player tile with domino triggers Fire (pickup)', () => {
+    it('double tap on player tile with domino does not directly fire (must use PushWait)', () => {
       grid.domino[5]![10]![0] = DominoType.Standard;
       const canvasX = (5 - 1) * 32 + 16;
       const canvasY = 10 * 16 + 8;
@@ -496,7 +547,7 @@ describe('TouchController', () => {
       tc.setPlayer(player);
       tc.update(playingState());
 
-      expect(tc.isControlHit(Control.Fire)).toBe(true);
+      expect(tc.isControlHit(Control.Fire)).toBe(false);
     });
 
     it('double tap on player tile while holding triggers Fire (place)', () => {
@@ -557,7 +608,7 @@ describe('TouchController', () => {
       expect(tc.isControlHit(Control.Fire)).toBe(false);
     });
 
-    it('double tap on player sprite top edge with domino triggers Fire (pickup)', () => {
+    it('double tap on player sprite top edge with domino does not directly fire', () => {
       grid.domino[5]![10]![0] = DominoType.Standard;
       const canvasX = (5 - 1) * 32 + 16;
       const canvasY = 10 * 16 - 28;
@@ -567,7 +618,7 @@ describe('TouchController', () => {
       tc.setPlayer(player);
       tc.update(playingState());
 
-      expect(tc.isControlHit(Control.Fire)).toBe(true);
+      expect(tc.isControlHit(Control.Fire)).toBe(false);
     });
 
     it('double tap on adjacent empty column triggers ledge jump', () => {
@@ -902,7 +953,7 @@ describe('TouchController', () => {
   });
 
   describe('gameplay - PushWait', () => {
-    it('tap on left tile pushes left', () => {
+    it('double-tap on player in PushWait pushes left when pushDirection is Left', () => {
       const player = new Player(0);
       player.GIX = 5;
       player.GIY = 10;
@@ -910,21 +961,21 @@ describe('TouchController', () => {
 
       const grid = makeGrid();
       grid.ledge[5]![10] = 1;
-      grid.ledge[6]![10] = 1;
 
       const canvasX = (5 - 1) * 32 + 16;
       const canvasY = 10 * 16 + 8;
-      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      const touch = makeTouchManager(null, { x: canvasX, y: canvasY });
       const tc = new TouchController(touch);
       tc.setGrid(grid);
       tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Left;
       tc.update(playingState());
 
       expect(tc.isControlActive(Control.Fire)).toBe(true);
       expect(tc.isControlActive(Control.Left)).toBe(true);
     });
 
-    it('tap on right tile pushes right', () => {
+    it('double-tap on player in PushWait pushes right when pushDirection is Right', () => {
       const player = new Player(0);
       player.GIX = 5;
       player.GIY = 10;
@@ -932,21 +983,21 @@ describe('TouchController', () => {
 
       const grid = makeGrid();
       grid.ledge[5]![10] = 1;
-      grid.ledge[6]![10] = 1;
 
-      const canvasX = (6 - 1) * 32 + 16;
+      const canvasX = (5 - 1) * 32 + 16;
       const canvasY = 10 * 16 + 8;
-      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      const touch = makeTouchManager(null, { x: canvasX, y: canvasY });
       const tc = new TouchController(touch);
       tc.setGrid(grid);
       tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Right;
       tc.update(playingState());
 
       expect(tc.isControlActive(Control.Fire)).toBe(true);
       expect(tc.isControlActive(Control.Right)).toBe(true);
     });
 
-    it('tap elsewhere in PushWait exits (Down control)', () => {
+    it('double-tap elsewhere in PushWait cancels (Down control)', () => {
       const player = new Player(0);
       player.GIX = 5;
       player.GIY = 10;
@@ -954,7 +1005,28 @@ describe('TouchController', () => {
 
       const grid = makeGrid();
       grid.ledge[5]![10] = 1;
-      grid.ledge[6]![10] = 1;
+
+      const canvasX = (10 - 1) * 32 + 16;
+      const canvasY = 10 * 16 + 8;
+      const touch = makeTouchManager(null, { x: canvasX, y: canvasY });
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Down)).toBe(true);
+      expect(tc.isControlActive(Control.Fire)).toBe(false);
+    });
+
+    it('single tap elsewhere in PushWait exits (Down control)', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
 
       const canvasX = (10 - 1) * 32 + 16;
       const canvasY = 10 * 16 + 8;
@@ -965,6 +1037,247 @@ describe('TouchController', () => {
       tc.update(playingState());
 
       expect(tc.isControlActive(Control.Down)).toBe(true);
+    });
+
+    it('single tap on player in PushWait defers when double-tap possible', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+
+      const canvasX = (5 - 1) * 32 + 16;
+      const canvasY = 10 * 16 + 8;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY }, null, null, true);
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Down)).toBe(false);
+      expect(tc.isControlActive(Control.Fire)).toBe(false);
+      expect((tc as any).deferredPushWaitCancel).toBe(true);
+      expect((tc as any).deferredTapPosition).toEqual({ x: canvasX, y: canvasY });
+    });
+
+    it('single tap on behind domino changes direction from left to right', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GILastMoved = 0;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+      grid.ledge[6]![10] = 1;
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+
+      const canvasX = (6 - 1) * 32 + 28;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Right)).toBe(true);
+      expect(tc.isControlActive(Control.Down)).toBe(false);
+      expect((tc as any).pushDirection).toBe(Control.Right);
+    });
+
+    it('single tap on behind domino changes direction from right to left', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GILastMoved = 1;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+      grid.ledge[6]![10] = 1;
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+
+      const canvasX = (5 - 1) * 32 + 4;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Right;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Left)).toBe(true);
+      expect(tc.isControlActive(Control.Down)).toBe(false);
+      expect((tc as any).pushDirection).toBe(Control.Left);
+    });
+
+    it('single tap on behind domino sets pushDirection when it was null', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GILastMoved = 0;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+      grid.ledge[6]![10] = 1;
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+
+      const canvasX = (6 - 1) * 32 + 28;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Right)).toBe(true);
+      expect((tc as any).pushDirection).toBe(Control.Right);
+    });
+
+    it('single tap above domino Y range does not change direction in PushWait', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GILastMoved = 0;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+      grid.ledge[6]![10] = 1;
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+
+      const canvasX = (6 - 1) * 32 + 28;
+      const canvasY = 10 * 16 - 50;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Down)).toBe(true);
+      expect((tc as any).pushDirection).toBeNull();
+    });
+
+    it('single tap on behind domino without standing domino exits PushWait', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GILastMoved = 0;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+      grid.ledge[6]![10] = 1;
+      grid.domino[5]![10]![0] = DominoType.Standard;
+
+      const canvasX = (6 - 1) * 32 + 28;
+      const canvasY = 10 * 16 - 10;
+      const touch = makeTouchManager({ x: canvasX, y: canvasY });
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Down)).toBe(true);
+      expect(tc.isControlActive(Control.Right)).toBe(false);
+    });
+
+    it('deferred tap on behind domino resolves to direction change', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GILastMoved = 0;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+      grid.ledge[6]![10] = 1;
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+
+      const tapPos = { x: (6 - 1) * 32 + 16, y: 10 * 16 - 10 };
+
+      const touch = makeTouchManager(null, null, null, false);
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).deferredPushWaitCancel = true;
+      (tc as any).deferredTapPosition = tapPos;
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Right)).toBe(true);
+      expect(tc.isControlActive(Control.Down)).toBe(false);
+      expect((tc as any).pushDirection).toBe(Control.Right);
+    });
+
+    it('deferred tap on front domino resolves to Down', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+      player.GILastMoved = 0;
+      player.GIXOffset = 16;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+      grid.ledge[6]![10] = 1;
+      grid.domino[5]![10]![0] = DominoType.Standard;
+      grid.domino[6]![10]![0] = DominoType.Standard;
+
+      const tapPos = { x: (5 - 1) * 32 + 16, y: 10 * 16 - 10 };
+
+      const touch = makeTouchManager(null, null, null, false);
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).deferredPushWaitCancel = true;
+      (tc as any).deferredTapPosition = tapPos;
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlActive(Control.Down)).toBe(true);
+      expect(tc.isControlActive(Control.Right)).toBe(false);
+      expect((tc as any).pushDirection).toBeNull();
+    });
+
+    it('deferred PushWait cancel resolves to Down when double-tap window expires', () => {
+      const player = new Player(0);
+      player.GIX = 5;
+      player.GIY = 10;
+      player.GIState = GIState.PushWait;
+
+      const grid = makeGrid();
+      grid.ledge[5]![10] = 1;
+
+      const touch = makeTouchManager(null, null, null, false);
+      const tc = new TouchController(touch);
+      tc.setGrid(grid);
+      tc.setPlayer(player);
+      (tc as any).deferredPushWaitCancel = true;
+      (tc as any).pushDirection = Control.Left;
+      tc.update(playingState());
+
+      expect(tc.isControlHit(Control.Down)).toBe(true);
+      expect((tc as any).pushDirection).toBeNull();
     });
   });
 

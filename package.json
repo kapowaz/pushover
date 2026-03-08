@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"scripts/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
     "test": "vitest",
     "convert:images": "tsx scripts/convert-images.ts",
     "convert:audio": "tsx scripts/convert-audio.ts",
