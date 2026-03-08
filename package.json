@@ -2,6 +2,8 @@
   "name": "pushover",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
+  "author": "Ben Darlow",
   "type": "module",
   "scripts": {
     "dev": "vite",
