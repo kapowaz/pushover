@@ -13,6 +13,10 @@ export class GameTimer {
     this.lastTime = performance.now();
   }
 
+  resume(): void {
+    this.lastTime = performance.now();
+  }
+
   update(): void {
     const now = performance.now();
     this.countTicks += now - this.lastTime;

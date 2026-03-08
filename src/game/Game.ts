@@ -1,5 +1,6 @@
 import { Renderer } from '../engine/Renderer';
 import { InputManager } from '../engine/InputManager';
+import { TouchManager } from '../engine/TouchManager';
 import { AudioManager } from '../engine/AudioManager';
 import { GameLoop } from '../engine/GameLoop';
 import { AssetLoader } from '../engine/AssetLoader';
@@ -16,6 +17,7 @@ import { ProfileManager } from './Profiles';
 import { NumberDisplay } from './Numbers';
 import { MessageBox, RenderMode, TextColor } from './MessageBox';
 import { HelpSystem, HelpId } from './Help';
+import { TouchController } from './TouchController';
 import { getImageUrl, loadMapData } from '../assets';
 import type { MapData } from './types';
 import {
@@ -43,6 +45,7 @@ import {
   Control,
   MESSAGE_DELAY,
   MessageType,
+  FIRSTMAP,
   LAST_MAP,
   TILESET_NAMES,
   MAP_SET_NAMES,
@@ -128,6 +131,8 @@ const TITLE_MESSAGE_END_MARGIN = 40;
 export class Game {
   private renderer: Renderer;
   private input: InputManager;
+  private touchManager: TouchManager;
+  private touchController: TouchController;
   private audio: AudioManager;
   private loop: GameLoop;
   private assets: AssetLoader;
@@ -225,6 +230,8 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
     this.input = new InputManager();
+    this.touchManager = new TouchManager(canvas);
+    this.touchController = new TouchController(this.touchManager);
     this.audio = new AudioManager();
     this.assets = new AssetLoader();
 
@@ -244,6 +251,7 @@ export class Game {
       () => {
         this.update();
         this.input.update();
+        this.touchManager.update();
       },
       () => this.render(),
     );
@@ -254,12 +262,51 @@ export class Game {
 
     this.profiles.load();
 
+    const devLevel = this.getDevLevelFromQueryString();
+    if (devLevel) {
+      this.ensureDevProfile();
+      this.mapSet = devLevel.mapSet;
+      this.startLevel(devLevel.level);
+      this.loop.start();
+      return;
+    }
+
     this.gameScreen = GameScreen.TitleMenu;
     this.switchTitleMenu(TitleMenu.Main);
     this.triggerGeneralHelp();
     this.music.requestMusic(100);
     void this.loadLevelTilesets();
     this.loop.start();
+  }
+
+  private getDevLevelFromQueryString(): { level: number; mapSet: MapSet } | null {
+    const params = new URLSearchParams(window.location.search);
+    const levelParam = params.get('level');
+    if (levelParam === null) return null;
+
+    const level = parseInt(levelParam, 10);
+    if (isNaN(level) || level < FIRSTMAP) return null;
+
+    let mapSet = MapSet.Original;
+    const mapSetParam = params.get('mapSet');
+    if (mapSetParam !== null) {
+      const parsed = parseInt(mapSetParam, 10);
+      if (!isNaN(parsed) && parsed >= MapSet.Original && parsed <= MapSet.Custom) {
+        mapSet = parsed;
+      }
+    }
+
+    const lastMap = LAST_MAP[mapSet] ?? 100;
+    if (level > lastMap) return null;
+
+    console.log(`[DEV] Loading level ${level} (${MAP_SET_NAMES[mapSet]})`);
+    return { level, mapSet };
+  }
+
+  private ensureDevProfile(): void {
+    if (this.profiles.active) return;
+    this.profiles.create('DEV');
+    this.profiles.setActive(this.profiles.count - 1);
   }
 
   private async loadAssets(): Promise<void> {
@@ -487,6 +534,32 @@ export class Game {
 
     this.help.process(this.input.keyHit('KeyH'));
 
+    this.touchController.setGrid({
+      ledge: this.map.ledge,
+      ladder: this.map.ladder,
+      domino: this.dominoes.domino,
+      domState: this.dominoes.domState,
+    });
+    if (this.players[0]) {
+      this.touchController.setPlayer(this.players[0]);
+    }
+
+    this.touchController.update({
+      gameScreen: this.gameScreen,
+      titleMenuState: this.titleMenuState,
+      titleCam: this.titleCam,
+      titleMin: this.titleMin,
+      titleMax: this.titleMax,
+      titleScroll: this.titleScroll,
+      titleOptions: this.getEffectiveMenuItems(),
+      levelSelect: this.levelSelect,
+      levelScroll: this.levelScroll,
+      mapSet: this.mapSet,
+      messageBoxActive: this.messageBox.isActive,
+      messageBoxOptions: this.messageBox.selectableOptions,
+      levelLoading: this.levelLoading,
+    });
+
     if (this.levelLoading) return;
 
     if (this.gameScreen === GameScreen.TitleMenu || this.gameScreen === GameScreen.LevelSelect) {
@@ -507,6 +580,10 @@ export class Game {
     if (this.input.keyHit('Escape') || this.input.keyHit('KeyP')) {
       this.showMessage(MessageType.Pause);
       return;
+    }
+
+    if (this.hasKeyboardInput()) {
+      this.touchController.cancelPath();
     }
 
     this.processDoors();
@@ -571,8 +648,17 @@ export class Game {
   }
 
   private updateMessageBox(): void {
+    const touchTap = this.touchController.consumeMessageBoxTap();
+    if (touchTap) {
+      this.messageBox.selectOption(touchTap.index);
+    }
+
     const result = this.messageBox.update(
-      (code) => this.input.keyHit(code),
+      (code) => {
+        if (this.input.keyHit(code)) return true;
+        if (touchTap && (code === 'KeyZ' || code === 'Enter' || code === 'Space')) return true;
+        return false;
+      },
       (id, x) => this.sounds.playSound(id, x),
     );
 
@@ -611,6 +697,7 @@ export class Game {
   private handlePauseResult(option: number): void {
     switch (option) {
       case 6: // Continue
+        this.timer.resume();
         break;
       case 7: // Retry
         this.triggerLevelLoad(this.currentMap);
@@ -1067,12 +1154,36 @@ export class Game {
     }
   }
 
+  private getEffectiveMenuItems(): string[] {
+    if (
+      this.titleMenuState === TitleMenu.LoadGame ||
+      this.titleMenuState === TitleMenu.EraseGame
+    ) {
+      const allProfiles = this.profiles.getAll();
+      return [...allProfiles.map((p) => p.name.toUpperCase()), 'BACK'];
+    }
+    if (this.titleMenuState === TitleMenu.LevelOptions) {
+      const unlocked = this.profiles.active?.costumesUnlocked ?? 0;
+      return unlocked > 0
+        ? ['BACK TO MAIN', 'QUIT', `COSTUME: ${this.profiles.getCostume() + 1}`]
+        : ['BACK TO MAIN', 'QUIT'];
+    }
+    return this.titleOptions;
+  }
+
   private processMenuInput(): void {
     if (this.titleMenuState === TitleMenu.LevelOptions) {
-      if (this.input.keyHit('ArrowRight') || this.input.keyHit('KeyD')) {
+      const touchArrow = this.touchController.consumeLevelArrow();
+      if (this.input.keyHit('ArrowRight') || this.input.keyHit('KeyD') || touchArrow === 'right') {
         this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
         this.switchTitleMenu(TitleMenu.LevelSelect, false);
         this.arrow2X = 7;
+        return;
+      }
+      if (touchArrow === 'left') {
+        this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
+        this.switchTitleMenu(TitleMenu.Main);
+        this.arrow1X = 7;
         return;
       }
     }
@@ -1085,6 +1196,11 @@ export class Game {
     if (this.titleMenuState === TitleMenu.NewGame) {
       this.processNameEntry();
       return;
+    }
+
+    const menuTap = this.touchController.consumeMenuTap();
+    if (menuTap) {
+      this.titleSelect = menuTap.index;
     }
 
     if (this.input.keyHit('ArrowDown') || this.input.keyHit('KeyS')) {
@@ -1111,7 +1227,10 @@ export class Game {
       }
     }
 
-    if (this.input.keyHit('KeyZ') || this.input.keyHit('Enter') || this.input.keyHit('Space')) {
+    if (
+      this.input.keyHit('KeyZ') || this.input.keyHit('Enter') || this.input.keyHit('Space') ||
+      this.touchController.consumeMenuConfirm()
+    ) {
       this.sounds.playSound(SoundId.Beep2, GAME_WIDTH / 2);
       this.selectMenuOption();
     }
@@ -1276,14 +1395,18 @@ export class Game {
     const lastMap = LAST_MAP[this.mapSet] ?? 100;
     const completed = this.profiles.active?.levelsComplete[this.mapSet] ?? 1;
 
-    if (this.input.keyHit('Escape')) {
+    const touchArrow = this.touchController.consumeLevelArrow();
+    const touchLevel = this.touchController.consumeLevelTap();
+    const touchLevelConfirm = this.touchController.consumeLevelConfirm();
+
+    if (this.input.keyHit('Escape') || this.touchController.consumeLevelBack()) {
       this.sounds.playSound(SoundId.Beep2, GAME_WIDTH / 2);
       this.switchTitleMenu(TitleMenu.Main);
       this.arrow1X = 7;
       return;
     }
 
-    if (this.input.keyHit('ArrowLeft') || this.input.keyHit('KeyA')) {
+    if (this.input.keyHit('ArrowLeft') || this.input.keyHit('KeyA') || touchArrow === 'left') {
       this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
       this.arrow1X = 7;
       if (this.mapSet === MapSet.Original) {
@@ -1298,7 +1421,7 @@ export class Game {
     }
 
     if (
-      (this.input.keyHit('ArrowRight') || this.input.keyHit('KeyD')) &&
+      ((this.input.keyHit('ArrowRight') || this.input.keyHit('KeyD')) || touchArrow === 'right') &&
       this.mapSet < MapSet.Custom
     ) {
       this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
@@ -1308,6 +1431,14 @@ export class Game {
         this.switchTitleMenu(TitleMenu.LevelSelect);
       });
       return;
+    }
+
+    if (touchLevel) {
+      if (touchLevel.level >= 1 && touchLevel.level <= lastMap) {
+        this.levelSelect = touchLevel.level;
+        this.requestMiniMap(this.levelSelect);
+        this.sounds.playSound(SoundId.Beep1, GAME_WIDTH / 2);
+      }
     }
 
     if (this.input.keyDown('ArrowUp') || this.input.keyDown('KeyW')) {
@@ -1361,7 +1492,10 @@ export class Game {
       }
     }
 
-    if (this.input.keyHit('Enter') || this.input.keyHit('Space') || this.input.keyHit('KeyZ')) {
+    if (
+      this.input.keyHit('Enter') || this.input.keyHit('Space') || this.input.keyHit('KeyZ') ||
+      touchLevelConfirm
+    ) {
       if (this.levelSelect <= completed) {
         const tileset = this.levelTilesets[this.levelSelect - 1] ?? 0;
         if (tileset > 0) {
@@ -1915,6 +2049,25 @@ export class Game {
     }
   }
 
+  private hasKeyboardInput(): boolean {
+    return (
+      this.input.keyDown('ArrowUp') ||
+      this.input.keyDown('ArrowDown') ||
+      this.input.keyDown('ArrowLeft') ||
+      this.input.keyDown('ArrowRight') ||
+      this.input.keyDown('KeyZ') ||
+      this.input.keyDown('Space') ||
+      this.input.keyDown('KeyW') ||
+      this.input.keyDown('KeyA') ||
+      this.input.keyDown('KeyS') ||
+      this.input.keyDown('KeyD') ||
+      this.input.keyDown('KeyG') ||
+      this.input.keyDown('KeyV') ||
+      this.input.keyDown('KeyB') ||
+      this.input.keyDown('KeyN')
+    );
+  }
+
   // --- Player context ---
 
   private getPlayerKeys(player: Player, control: Control): string[] {
@@ -1934,13 +2087,16 @@ export class Game {
 
   private createProcessContext(player: Player): ProcessContext {
     const other = this.players.find((pl) => pl !== player) ?? null;
+    const isPlayer1 = player === this.players[0];
 
     const context: ProcessContext = Object.defineProperties(
       {
         contHit: (control: Control) =>
-          this.getPlayerKeys(player, control).some((k) => this.input.keyHit(k)),
+          this.getPlayerKeys(player, control).some((k) => this.input.keyHit(k)) ||
+          (isPlayer1 && this.touchController.isControlHit(control)),
         contDown: (control: Control) =>
-          this.getPlayerKeys(player, control).some((k) => this.input.keyDown(k)),
+          this.getPlayerKeys(player, control).some((k) => this.input.keyDown(k)) ||
+          (isPlayer1 && this.touchController.isControlActive(control)),
 
         ledge: this.map.ledge,
         ladder: this.map.ladder,

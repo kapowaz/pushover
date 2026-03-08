@@ -131,6 +131,10 @@ export class ProfileManager {
     this.save();
   }
 
+  get count(): number {
+    return this.profiles.length;
+  }
+
   getAll(): ProfileData[] {
     return this.profiles;
   }

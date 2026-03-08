@@ -121,4 +121,21 @@ describe('GameTimer', () => {
     // countTicks: 700 + 400 = 1100, then -1000 = 100
     expect(timer.colonVisible).toBe(true);
   });
+
+  it('resume discards time elapsed during pause', () => {
+    timer.init(1, 0);
+    mockTime = 1000;
+    timer.update();
+    expect(timer.secs).toBe(59);
+
+    // Simulate a long pause (30 seconds of wall-clock time with no updates)
+    mockTime = 31000;
+    timer.resume();
+
+    // First update after resume should only count from resume point
+    mockTime = 32000;
+    timer.update();
+    expect(timer.mins).toBe(0);
+    expect(timer.secs).toBe(58);
+  });
 });

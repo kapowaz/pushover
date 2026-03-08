@@ -106,6 +106,27 @@ export class MessageBox {
     return this.messageType;
   }
 
+  selectOption(index: number): void {
+    if (index >= this.optionsStart && index < TEXT_SLOTS && this.messageText[index]) {
+      this.optionsSelect = index;
+    }
+  }
+
+  get selectableOptions(): { index: number; y: number; text: string }[] {
+    if (!this.active || this.optionsStart === 0) return [];
+    const options: { index: number; y: number; text: string }[] = [];
+    for (let i = this.optionsStart; i < TEXT_SLOTS; i++) {
+      const text = this.messageText[i]!;
+      if (!text) continue;
+      options.push({
+        index: i,
+        y: this.messageY + this.messageTextY[i]! + BORDER_TILE_SIZE,
+        text,
+      });
+    }
+    return options;
+  }
+
   private setSize(w: number, h: number): void {
     this.messageW = w;
     this.messageH = h;
@@ -296,7 +317,7 @@ export class MessageBox {
       }
     }
 
-    if (contHit('KeyP') && this.messageType === MessageType.Pause) {
+    if ((contHit('KeyP') || contHit('Escape')) && this.messageType === MessageType.Pause) {
       this.optionsSelect = this.optionsStart;
       this.dismissed = true;
       playSound(SoundId.Beep2, CENTER_X);
